@@ -1,0 +1,10 @@
+.DS_Store
+Thumbs.db
+*.log
+
+# Local browser test profiles
+.chrome-*/
+
+# Temporary exports
+*.tmp
+*.bak

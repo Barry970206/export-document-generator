@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>外贸报价单发票生成器</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace" aria-label="报价单编辑区">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Export Documents</p>
+            <h1>外贸报价单发票生成器</h1>
+          </div>
+          <div class="topbar-actions">
+            <a class="ghost-button nav-button" href="calculator.html" title="打开报价利润核算器">利润核算器</a>
+            <button class="ghost-button" id="togglePreviewBtn" type="button" title="隐藏或显示实时预览">隐藏预览</button>
+            <button class="ghost-button" id="resetBtn" type="button" title="清空当前内容">清空</button>
+            <button class="ghost-button" id="exportExcelBtn" type="button" title="导出 Excel 表格">导出 Excel</button>
+            <button class="primary-button" id="printBtn" type="button" title="打印或另存为 PDF">打印 / PDF</button>
+          </div>
+        </header>
+
+        <form id="documentForm" class="editor" autocomplete="off">
+          <section class="panel">
+            <div class="section-heading">
+              <h2>文件信息</h2>
+              <div class="segmented" role="radiogroup" aria-label="文件类型">
+                <label>
+                  <input type="radio" name="docType" value="Quotation" checked />
+                  <span>报价单</span>
+                </label>
+                <label>
+                  <input type="radio" name="docType" value="Proforma Invoice" />
+                  <span>形式发票</span>
+                </label>
+                <label>
+                  <input type="radio" name="docType" value="Commercial Invoice" />
+                  <span>商业发票</span>
+                </label>
+                <label>
+                  <input type="radio" name="docType" value="Packing List" />
+                  <span>装箱单</span>
+                </label>
+              </div>
+            </div>
+            <div class="form-grid four">
+              <label>
+                <span>文件编号</span>
+                <input id="docNo" name="docNo" type="text" />
+              </label>
+              <label>
+                <span>PO No.</span>
+                <input id="poNo" name="poNo" type="text" placeholder="Customer PO number" />
+              </label>
+              <label>
+                <span>日期</span>
+                <input id="docDate" name="docDate" type="date" />
+              </label>
+              <label>
+                <span>有效期</span>
+                <input id="validUntil" name="validUntil" type="date" />
+              </label>
+              <label>
+                <span>报价币种</span>
+                <select id="currency" name="currency">
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="GBP">GBP</option>
+                  <option value="CNY">CNY</option>
+                  <option value="JPY">JPY</option>
+                  <option value="AUD">AUD</option>
+                </select>
+              </label>
+              <label>
+                <span>汇率：1 USD = 人民币</span>
+                <input id="exchangeRate" name="exchangeRate" type="number" min="0.0001" step="0.0001" value="7.20" />
+              </label>
+              <label>
+                <span>价格换算方式</span>
+                <select id="priceMode" name="priceMode">
+                  <option value="direct" selected>自由填写美元单价</option>
+                  <option value="cnyToUsd">人民币自动换算美元，可手动修改</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <h2>公司与客户</h2>
+            </div>
+            <div class="brand-grid">
+              <div class="logo-picker">
+                <span>报价单 Logo</span>
+                <div class="logo-picker-box">
+                  <img id="logoPreview" class="is-empty" src="" alt="Logo 预览" />
+                  <span class="logo-placeholder">未选择 Logo</span>
+                  <label class="logo-upload-button">
+                    <span>更换图片</span>
+                    <input id="logoFile" type="file" accept="image/*" aria-label="更换报价单 Logo" />
+                  </label>
+                </div>
+                <input id="logoUrl" name="logoUrl" type="hidden" value="" />
+              </div>
+              <label>
+                <span>公司网址</span>
+                <input id="sellerWebsite" name="sellerWebsite" type="text" placeholder="www.example.com" />
+              </label>
+              <label>
+                <span>电话 / WhatsApp</span>
+                <input id="sellerPhone" name="sellerPhone" type="text" placeholder="+86 138 0000 0000" />
+              </label>
+            </div>
+            <div class="form-grid two">
+              <fieldset>
+                <legend>卖方信息</legend>
+                <label>
+                  <span>公司名称</span>
+                  <input id="sellerName" name="sellerName" type="text" placeholder="Your Company Ltd." />
+                </label>
+                <label>
+                  <span>地址</span>
+                  <textarea id="sellerAddress" name="sellerAddress" rows="3" placeholder="Address, City, Country"></textarea>
+                </label>
+                <div class="form-grid two tight">
+                  <label>
+                    <span>联系人</span>
+                    <input id="sellerContact" name="sellerContact" type="text" />
+                  </label>
+                  <label>
+                    <span>邮箱</span>
+                    <input id="sellerEmail" name="sellerEmail" type="email" />
+                  </label>
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>买方信息</legend>
+                <label>
+                  <span>客户名称</span>
+                  <input id="buyerName" name="buyerName" type="text" placeholder="Customer Company" />
+                </label>
+                <label>
+                  <span>地址</span>
+                  <textarea id="buyerAddress" name="buyerAddress" rows="3" placeholder="Address, City, Country"></textarea>
+                </label>
+                <div class="form-grid two tight">
+                  <label>
+                    <span>国家</span>
+                    <input id="buyerCountry" name="buyerCountry" type="text" placeholder="United States" />
+                  </label>
+                  <label>
+                    <span>联系人</span>
+                    <input id="buyerContact" name="buyerContact" type="text" />
+                  </label>
+                </div>
+                <div class="form-grid two tight">
+                  <label>
+                    <span>邮箱</span>
+                    <input id="buyerEmail" name="buyerEmail" type="email" />
+                  </label>
+                </div>
+              </fieldset>
+            </div>
+          </section>
+
+          <section class="panel pl-hidden-section">
+            <div class="section-heading">
+              <h2>整段复制识别</h2>
+              <button class="ghost-button compact" id="parsePasteBtn" type="button">识别并填入表格</button>
+            </div>
+            <label class="notes-field paste-field">
+              <span>把客户询价、Excel 行、微信文本或产品清单整段粘贴到这里</span>
+              <textarea
+                id="bulkInput"
+                rows="5"
+                placeholder="示例：
+LED light, Model A, 100, 12.5
+USB cable 型号 C-01 数量 300 单价 4.8元
+品名：Gift box 规格：20x10cm 数量：50 人民币单价：18"
+              ></textarea>
+            </label>
+            <div class="helper-row">
+              <span id="parseStatus">识别规则：每行一个产品，自动找数量和人民币单价；表格粘贴会按列识别。</span>
+              <button class="text-button" id="clearPasteBtn" type="button">清空粘贴区</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <h2>产品明细</h2>
+              <div class="item-actions">
+                <button class="ghost-button compact" id="addItemBtn" type="button">添加产品</button>
+              </div>
+            </div>
+            <div class="form-grid two pl-product-options pl-only-field">
+              <label>
+                <span>唛头 / Shipping Mark</span>
+                <input id="shippingMark" name="shippingMark" type="text" placeholder="N/M or customer shipping mark" />
+              </label>
+              <label>
+                <span>Packages 单位</span>
+                <select id="packageUnit" name="packageUnit">
+                  <option value="CARTONS" selected>CARTONS</option>
+                  <option value="PKGS">PKGS</option>
+                </select>
+              </label>
+            </div>
+            <div class="items-table" role="table" aria-label="产品明细">
+              <div class="items-head" role="row">
+                <span>图片</span>
+                <span>描述</span>
+                <span>规格 / 型号</span>
+                <span>材质 / 表面处理</span>
+                <span>HS Code</span>
+                <span>数量</span>
+                <span class="pl-only-col">Packages</span>
+                <span class="pl-only-col">Pallets</span>
+                <span class="pl-only-col">N.W.</span>
+                <span class="pl-only-col">G.W.</span>
+                <span class="pl-only-col">CBM</span>
+                <span>人民币单价</span>
+                <span>美元单价</span>
+                <span>金额</span>
+                <span></span>
+              </div>
+              <div id="itemsBody"></div>
+            </div>
+          </section>
+
+          <section class="panel terms-panel">
+            <div class="section-heading">
+              <h2>贸易条款</h2>
+            </div>
+            <div class="form-grid four">
+              <label>
+                <span>贸易术语</span>
+                <select id="incoterm" name="incoterm">
+                  <option value="EXW">EXW</option>
+                  <option value="FOB" selected>FOB</option>
+                  <option value="CFR">CFR</option>
+                  <option value="CIF">CIF</option>
+                  <option value="DAP">DAP</option>
+                  <option value="DDP">DDP</option>
+                  <option value="Express Courier Shipment">Express Courier Shipment</option>
+                </select>
+              </label>
+              <label>
+                <span>Destination（DAP/DDP）</span>
+                <input id="tradeDestination" name="tradeDestination" type="text" placeholder="Customer address / delivery place" />
+              </label>
+              <label class="ci-hidden-field">
+                <span>运输方式</span>
+                <select id="transportMode" name="transportMode">
+                  <option value="" selected>请选择</option>
+                  <option value="By Sea">By Sea</option>
+                  <option value="By Air">By Air</option>
+                  <option value="By Express">By Express</option>
+                  <option value="By Railway">By Railway</option>
+                  <option value="By Truck">By Truck</option>
+                </select>
+              </label>
+              <label>
+                <span>装运港</span>
+                <input id="loadingPort" name="loadingPort" type="text" placeholder="Shenzhen, China" />
+              </label>
+              <label>
+                <span>目的港</span>
+                <input id="destinationPort" name="destinationPort" type="text" placeholder="Los Angeles, USA" />
+              </label>
+              <label class="ci-hidden-field">
+                <span>交期</span>
+                <input id="leadTime" name="leadTime" type="text" placeholder="15-25 days after payment" />
+              </label>
+              <label class="ci-hidden-field">
+                <span>付款方式</span>
+                <input id="paymentTerms" name="paymentTerms" type="text" placeholder="T/T 30% deposit, 70% before shipment" />
+              </label>
+              <label>
+                <span>包装</span>
+                <input id="packing" name="packing" type="text" placeholder="Export standard carton" />
+              </label>
+              <label>
+                <span>原产地</span>
+                <input id="countryOfOrigin" name="countryOfOrigin" type="text" placeholder="China" />
+              </label>
+              <label>
+                <span>运费（报价币种）</span>
+                <input id="shipping" name="shipping" type="number" min="0" step="0.01" value="0" />
+              </label>
+              <label>
+                <span>折扣（报价币种）</span>
+                <input id="discount" name="discount" type="number" min="0" step="0.01" value="0" />
+              </label>
+            </div>
+            <label class="notes-field ci-only-field">
+              <span>Declaration</span>
+              <textarea id="declaration" name="declaration" rows="3" placeholder="Declaration statement for commercial invoice"></textarea>
+            </label>
+            <div class="bank-grid ci-hidden-field">
+              <label>
+                <span>收款人 / Beneficiary</span>
+                <input id="bankBeneficiary" name="bankBeneficiary" type="text" />
+              </label>
+              <label>
+                <span>开户银行 / Bank Name</span>
+                <input id="bankName" name="bankName" type="text" />
+              </label>
+              <label>
+                <span>银行账号 / Account No.</span>
+                <input id="bankAccount" name="bankAccount" type="text" />
+              </label>
+              <label>
+                <span>SWIFT Code</span>
+                <input id="bankSwift" name="bankSwift" type="text" />
+              </label>
+              <label>
+                <span>银行地址 / Bank Address</span>
+                <input id="bankAddress" name="bankAddress" type="text" />
+              </label>
+            </div>
+            <label class="notes-field">
+              <span>备注</span>
+              <textarea id="notes" name="notes" rows="4" placeholder="Other remarks, special packing, document requirements, or delivery notes."></textarea>
+            </label>
+            <label class="notes-field signature-field">
+              <span>签字栏内容</span>
+              <input id="signatureText" name="signatureText" type="text" placeholder="Authorized Signature" />
+            </label>
+          </section>
+        </form>
+      </section>
+
+      <aside class="preview-shell" aria-label="文件预览">
+        <div class="preview-toolbar">
+          <span>实时预览</span>
+          <span id="saveState">已保存草稿</span>
+        </div>
+        <article id="documentPreview" class="document-page"></article>
+      </aside>
+    </main>
+
+    <template id="itemRowTemplate">
+      <div class="item-row" role="row">
+        <div class="image-cell">
+          <img class="item-image-preview" alt="产品图预览" />
+          <label class="image-upload">
+            <span>上传</span>
+            <input class="item-image" type="file" accept="image/*" aria-label="上传产品图片" />
+          </label>
+        </div>
+        <input class="item-desc" type="text" placeholder="Product name / description" aria-label="产品描述" />
+        <input class="item-spec" type="text" placeholder="Model / specification" aria-label="规格型号" />
+        <input class="item-material" type="text" placeholder="Material / surface" aria-label="材质或表面处理" />
+        <input class="item-hs-code" type="text" placeholder="HS Code" aria-label="HS Code" />
+        <div class="qty-unit-cell">
+          <input class="item-qty" type="number" min="0" step="1" value="1" aria-label="数量" />
+          <input class="item-unit unit-suffix-input" type="text" value="PCS" aria-label="数量单位" />
+        </div>
+        <div class="unit-input item-package-wrap" data-unit="CARTONS">
+          <input class="item-package" type="number" min="0" step="1" value="0" aria-label="Packages" />
+        </div>
+        <div class="unit-input item-pallets-wrap" data-unit="PALLETS">
+          <input class="item-pallets" type="number" min="0" step="1" value="0" aria-label="Pallets" />
+        </div>
+        <div class="unit-input item-net-weight-wrap" data-unit="KGS">
+          <input class="item-net-weight" type="number" min="0" step="0.001" value="0" aria-label="Net weight" />
+        </div>
+        <div class="unit-input item-gross-weight-wrap" data-unit="KGS">
+          <input class="item-gross-weight" type="number" min="0" step="0.001" value="0" aria-label="Gross weight" />
+        </div>
+        <div class="unit-input item-cbm-wrap" data-unit="CBM">
+          <input class="item-cbm" type="number" min="0" step="0.001" value="0" aria-label="CBM" />
+        </div>
+        <input class="item-rmb-price" type="number" min="0" step="0.000001" value="0" aria-label="人民币单价" />
+        <input class="item-price" type="number" min="0" step="0.000001" value="0" aria-label="美元单价" />
+        <output class="item-total" aria-label="金额">0.00</output>
+        <button class="icon-button remove-item" type="button" title="删除此行" aria-label="删除此行">x</button>
+      </div>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>

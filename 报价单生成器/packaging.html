@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>包装数据库管理</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="calculator-page" data-packaging-manager>
+      <header class="topbar calculator-topbar">
+        <div>
+          <p class="eyebrow">包装管理</p>
+          <h1>包装数据库管理</h1>
+        </div>
+        <div class="topbar-actions">
+          <label class="language-select">
+            <span>显示语言</span>
+            <select id="packagingLanguage">
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+          <a class="ghost-button nav-button" href="logistics.html">物流管理</a>
+          <a class="ghost-button nav-button" href="calculator.html">返回核算器</a>
+          <button class="ghost-button compact" id="addPackagingItemBtn" type="button">新增包装物料</button>
+          <button class="primary-button" id="addPackagingProfileBtn" type="button">新增包装方案</button>
+        </div>
+      </header>
+
+      <section class="packaging-manager-layout">
+        <section class="panel packaging-database-block">
+          <div class="section-heading">
+            <h2>包装物料</h2>
+          </div>
+          <p class="calculator-status packaging-helper">内包装重点填写容量 PCS、容量 KG、成本、自重；纸箱和托盘重点填写长宽高、成本、最大承重、自重。自动 CBM 按长 × 宽 × 高 / 1000000 计算。</p>
+          <div class="packaging-table" role="table" aria-label="包装物料表">
+            <div class="packaging-items-head" role="row">
+              <span>包装名称</span>
+              <span>类型</span>
+              <span>长 cm</span>
+              <span>宽 cm</span>
+              <span>高 cm</span>
+              <span>自动 CBM</span>
+              <span>成本 RMB</span>
+              <span>容量 PCS</span>
+              <span>容量 KG</span>
+              <span>最大承重 KG</span>
+              <span>自重 KG</span>
+              <span>备注</span>
+              <span></span>
+            </div>
+            <div id="packagingItemsBody"></div>
+          </div>
+        </section>
+
+        <section class="panel packaging-database-block">
+          <div class="section-heading">
+            <h2>包装方案</h2>
+          </div>
+          <div class="packaging-table" role="table" aria-label="包装方案表">
+            <div class="packaging-profiles-head" role="row">
+              <span>方案名称</span>
+              <span>包装级别</span>
+              <span>内包装</span>
+              <span>每内包装数量 PCS</span>
+              <span>外箱</span>
+              <span>每箱内包装数量</span>
+              <span>托盘</span>
+              <span>每托盘箱数</span>
+              <span>使用托盘</span>
+              <span>备注</span>
+              <span></span>
+            </div>
+            <div id="packagingProfilesBody"></div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="packaging.js"></script>
+  </body>
+</html>

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>物流管理</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      .calculator-page[data-logistics-manager] .calculator-topbar,
+      .logistics-manager-layout {
+        max-width: 1440px;
+      }
+
+      .logistics-manager-layout {
+        display: grid;
+        grid-template-columns: minmax(300px, 0.34fr) minmax(0, 1fr);
+        gap: 18px;
+        width: min(1440px, 100%);
+        margin: 0 auto;
+        align-items: start;
+      }
+
+      .logistics-list-panel,
+      .logistics-editor-panel {
+        min-width: 0;
+      }
+
+      .logistics-search {
+        margin-bottom: 14px;
+      }
+
+      .logistics-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .logistics-list-item {
+        display: grid;
+        gap: 8px;
+        width: 100%;
+        padding: 12px;
+        color: var(--ink);
+        text-align: left;
+        background: #ffffff;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: none;
+      }
+
+      .logistics-list-item:hover {
+        border-color: rgba(15, 118, 110, 0.45);
+        background: #f8fbfa;
+      }
+
+      .logistics-list-item[aria-current="true"] {
+        border-color: rgba(15, 118, 110, 0.6);
+        background: var(--accent-soft);
+      }
+
+      .logistics-list-item strong {
+        font-size: 15px;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+      }
+
+      .logistics-list-meta {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .logistics-list-meta span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .logistics-editor-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .logistics-form {
+        display: grid;
+        gap: 16px;
+      }
+
+      .logistics-form-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .logistics-form-grid .wide-field {
+        grid-column: 1 / -1;
+      }
+
+      .logistics-updated-at[readonly] {
+        color: var(--muted);
+        background: #eef3f6;
+      }
+
+      .logistics-empty {
+        margin: 0;
+        padding: 14px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+        background: #f7f9fb;
+        border: 1px dashed var(--line);
+        border-radius: 8px;
+      }
+
+      @media screen and (max-width: 980px) {
+        .logistics-manager-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media screen and (max-width: 720px) {
+        .logistics-list-meta,
+        .logistics-form-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .logistics-editor-actions {
+          justify-content: stretch;
+        }
+
+        .logistics-editor-actions .ghost-button {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="calculator-page" data-logistics-manager>
+      <header class="topbar calculator-topbar">
+        <div>
+          <p class="eyebrow">物流管理</p>
+          <h1>物流方案管理</h1>
+        </div>
+        <div class="topbar-actions">
+          <a class="ghost-button nav-button" href="packaging.html">包装管理</a>
+          <a class="ghost-button nav-button" href="calculator.html">报价核算</a>
+          <button class="primary-button" id="addLogisticsProfileBtn" type="button">新增物流方案</button>
+        </div>
+      </header>
+
+      <section class="logistics-manager-layout">
+        <section class="panel logistics-list-panel">
+          <div class="section-heading">
+            <h2>物流方案列表</h2>
+          </div>
+          <label class="logistics-search">
+            <span>搜索</span>
+            <input id="logisticsSearch" type="search" placeholder="搜索方案、国家、目的港、供应商、币种、备注" />
+          </label>
+          <div id="logisticsProfilesList" class="logistics-list" aria-label="物流方案列表"></div>
+        </section>
+
+        <section class="panel logistics-editor-panel">
+          <div class="section-heading">
+            <h2>物流方案编辑区</h2>
+            <div class="logistics-editor-actions">
+              <button class="ghost-button compact" id="saveLogisticsProfileBtn" type="button">保存</button>
+              <button class="ghost-button compact" id="copyLogisticsProfileBtn" type="button">复制</button>
+              <button class="ghost-button compact" id="deleteLogisticsProfileBtn" type="button">删除</button>
+            </div>
+          </div>
+
+          <form id="logisticsEditorForm" class="logistics-form" autocomplete="off">
+            <div class="logistics-form-grid">
+              <label>
+                <span>方案名称</span>
+                <input id="logisticsName" name="name" type="text" />
+              </label>
+              <label>
+                <span>国家/地区</span>
+                <input id="logisticsCountry" name="countryRegion" type="text" />
+              </label>
+              <label>
+                <span>目的港</span>
+                <input id="logisticsDestinationPort" name="destinationPort" type="text" />
+              </label>
+              <label>
+                <span>贸易条款</span>
+                <select id="logisticsIncoterm" name="incoterm"></select>
+              </label>
+              <label>
+                <span>运输方式</span>
+                <select id="logisticsTransportMode" name="transportMode"></select>
+              </label>
+              <label>
+                <span>物流供应商</span>
+                <input id="logisticsSupplier" name="supplier" type="text" />
+              </label>
+              <label>
+                <span>币种</span>
+                <select id="logisticsCurrency" name="currency"></select>
+              </label>
+              <label>
+                <span>计费方式</span>
+                <select id="logisticsBillingMethod" name="billingMethod"></select>
+              </label>
+              <label>
+                <span>单价</span>
+                <input id="logisticsUnitPrice" name="unitPrice" type="number" min="0" step="0.0001" />
+              </label>
+              <label>
+                <span>最低收费</span>
+                <input id="logisticsMinimumCharge" name="minimumCharge" type="number" min="0" step="0.0001" />
+              </label>
+              <label>
+                <span>物流总成本</span>
+                <input id="logisticsTotalCost" name="totalCost" type="number" min="0" step="0.0001" />
+              </label>
+              <label>
+                <span>更新时间</span>
+                <input class="logistics-updated-at" id="logisticsUpdatedAt" name="updatedAt" type="text" readonly tabindex="-1" />
+              </label>
+              <label class="wide-field">
+                <span>备注</span>
+                <textarea id="logisticsRemark" name="remark" rows="5"></textarea>
+              </label>
+            </div>
+          </form>
+          <p id="logisticsStatus" class="calculator-status">数据保存在本机 localStorage：logisticsProfiles。</p>
+        </section>
+      </section>
+    </main>
+
+    <script src="logistics.js"></script>
+  </body>
+</html>

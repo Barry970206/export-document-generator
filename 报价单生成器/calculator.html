@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>报价利润核算器</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      #profitForm .form-grid output {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        min-height: 42px;
+        padding: 0 9px;
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 800;
+        background: #f1f5f7;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="calculator-page">
+      <header class="topbar calculator-topbar">
+        <div>
+          <p class="eyebrow">Profit Calculator</p>
+          <h1>报价利润核算器</h1>
+        </div>
+        <div class="topbar-actions">
+          <a class="ghost-button nav-button" href="packaging.html">包装管理</a>
+          <a class="ghost-button nav-button" href="logistics.html">物流管理</a>
+          <a class="ghost-button nav-button" href="index.html">返回报价单</a>
+          <button class="primary-button" id="generateQuoteBtn" type="button">生成报价单</button>
+        </div>
+      </header>
+
+      <section class="calculator-grid" aria-label="报价利润核算器">
+        <form id="profitForm" class="editor" autocomplete="off">
+          <section class="panel">
+            <div class="section-heading">
+              <h2>核算设置</h2>
+            </div>
+            <div class="form-grid two calculator-settings-grid">
+              <label>
+                <span>汇率：1 USD = 人民币</span>
+                <input id="exchangeRate" name="exchangeRate" type="number" min="0.0001" step="0.0001" value="7.20" />
+              </label>
+              <label>
+                <span>目标利润率(%)</span>
+                <input id="targetProfitRate" name="targetProfitRate" type="number" min="0" max="99.99" step="0.01" value="20" />
+              </label>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <h2>产品明细</h2>
+              <button class="ghost-button compact" id="addProductBtn" type="button">添加产品</button>
+            </div>
+            <div id="profitItemsBody" class="product-card-list" aria-label="利润核算产品明细"></div>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <h2>整单外包装</h2>
+            </div>
+            <div class="form-grid four">
+              <label>
+                <span>外包装模式</span>
+                <select id="outerPackagingMode" name="outerPackagingMode" aria-label="外包装模式">
+                  <option value="independent" selected>单品独立装箱</option>
+                  <option value="combined">整单合箱</option>
+                </select>
+              </label>
+              <label>
+                <span>外箱类型</span>
+                <select id="outerCartonId" name="outerCartonId" aria-label="外箱类型"></select>
+              </label>
+              <label>
+                <span>每箱内包装数量</span>
+                <input id="outerInnerPacksPerCarton" name="outerInnerPacksPerCarton" type="number" min="0" step="1" value="0" />
+              </label>
+              <label>
+                <span>手动箱数</span>
+                <input id="outerManualCartonQty" name="outerManualCartonQty" type="number" min="0" step="1" placeholder="Auto" />
+              </label>
+              <label>
+                <span>是否使用托盘</span>
+                <select id="outerUsePallet" name="outerUsePallet" aria-label="是否使用托盘">
+                  <option value="0" selected>否</option>
+                  <option value="1">是</option>
+                </select>
+              </label>
+              <label>
+                <span>托盘类型</span>
+                <select id="outerPalletId" name="outerPalletId" aria-label="托盘类型"></select>
+              </label>
+              <label>
+                <span>每托盘箱数</span>
+                <input id="outerCartonsPerPallet" name="outerCartonsPerPallet" type="number" min="0" step="1" value="0" />
+              </label>
+              <label>
+                <span>手动托盘数</span>
+                <input id="outerManualPalletQty" name="outerManualPalletQty" type="number" min="0" step="1" placeholder="Auto" />
+              </label>
+            </div>
+            <div class="packaging-result-strip order-packaging-strip" aria-label="整单外包装计算结果">
+              <div><span>整单总重量 KG</span><strong id="outerOrderWeightKg">0.000</strong></div>
+              <div><span>整单内包装数量</span><strong id="outerTotalInnerPackQty">0</strong></div>
+              <div><span>整单箱数</span><strong id="outerCartonQty">0</strong></div>
+              <div><span>整单托盘数</span><strong id="outerPalletQty">0</strong></div>
+              <div><span>整单CBM</span><strong id="outerTotalCbm">0.000</strong></div>
+              <div><span>整单外包装成本 RMB</span><strong id="outerPackagingCostRmb">0.00</strong></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <h2>整单物流成本</h2>
+            </div>
+            <div class="form-grid four">
+              <label>
+                <span>整单重量 KG</span>
+                <output id="orderTotalWeightKg">0.000</output>
+              </label>
+              <label>
+                <span>整单CBM</span>
+                <output id="orderTotalCbm">0.000</output>
+              </label>
+              <label>
+                <span>物流方案</span>
+                <select id="orderLogisticsProfile" name="orderLogisticsProfile" aria-label="物流方案"></select>
+              </label>
+              <label>
+                <span>物流成本计算方式</span>
+                <select id="orderLogisticsBillingMethod" name="orderLogisticsBillingMethod" aria-label="物流成本计算方式">
+                  <option value="按重量(KG)">按重量(KG)</option>
+                  <option value="按体积(CBM)">按体积(CBM)</option>
+                  <option value="直接总价">直接总价</option>
+                </select>
+              </label>
+              <label>
+                <span>币种</span>
+                <input id="orderLogisticsCurrency" type="text" value="CNY" readonly tabindex="-1" />
+              </label>
+              <label>
+                <span>单价</span>
+                <input id="orderLogisticsUnitPrice" type="number" min="0" step="0.0001" value="0" readonly tabindex="-1" />
+              </label>
+              <label>
+                <span>最低收费</span>
+                <input id="orderLogisticsMinimumCharge" type="number" min="0" step="0.0001" value="0" readonly tabindex="-1" />
+              </label>
+              <label>
+                <span>方案物流总成本</span>
+                <input id="orderLogisticsProfileTotalCost" type="number" min="0" step="0.0001" value="0" readonly tabindex="-1" />
+              </label>
+              <label>
+                <span>物流成本 RMB</span>
+                <output id="orderLogisticsCostRmb">0.00</output>
+              </label>
+              <label>
+                <span>计算来源</span>
+                <output id="orderLogisticsCostSource">未选择物流方案</output>
+              </label>
+              <label>
+                <span>分摊方式</span>
+                <select id="orderLogisticsAllocationMethod" name="orderLogisticsAllocationMethod" aria-label="物流成本分摊方式">
+                  <option value="weight" selected>按重量分摊</option>
+                  <option value="quantity">按数量分摊</option>
+                  <option value="amount">按金额分摊</option>
+                </select>
+              </label>
+            </div>
+          </section>
+        </form>
+
+        <aside class="panel calculator-summary" aria-live="polite">
+          <div class="section-heading">
+            <h2>汇总结果</h2>
+            <span id="profitBadge" class="profit-badge status-normal">正常</span>
+          </div>
+          <div class="result-stack">
+            <div class="result-card primary-result">
+              <span>产品数量</span>
+              <strong id="productCount">0</strong>
+            </div>
+            <div class="result-card">
+              <span>总数量</span>
+              <strong id="totalQty">0</strong>
+            </div>
+            <div class="result-card">
+              <span>总成本 RMB</span>
+              <strong id="totalCost">0.00</strong>
+            </div>
+            <div class="result-card">
+              <span>报价总额 USD</span>
+              <strong id="totalUsd">$0.00</strong>
+            </div>
+            <div class="result-card">
+              <span>报价总额 RMB</span>
+              <strong id="totalRmb">0.00</strong>
+            </div>
+            <div class="result-card">
+              <span>总利润 RMB</span>
+              <strong id="totalProfit">0.00</strong>
+            </div>
+            <div class="result-card">
+              <span>整体利润率</span>
+              <strong id="overallProfitRate">0.00%</strong>
+            </div>
+          </div>
+          <div class="profit-scale" aria-label="利润颜色预警">
+            <div class="scale-block red"><span>&lt;10%</span><strong>偏低</strong></div>
+            <div class="scale-block yellow"><span>10%-20%</span><strong>正常</strong></div>
+            <div class="scale-block green"><span>&gt;20%</span><strong>优秀</strong></div>
+          </div>
+          <p id="generateStatus" class="calculator-status">生成报价单后，将自动带入产品、数量、人民币单价和美元报价。</p>
+        </aside>
+      </section>
+
+      <template id="profitItemTemplate">
+        <div class="product-card profit-item-row">
+          <div class="product-card-head">
+            <h3>产品</h3>
+            <button class="icon-button remove-profit-item" type="button" title="删除此产品" aria-label="删除此产品">x</button>
+          </div>
+
+          <div class="product-card-section">
+            <h4>产品基础信息</h4>
+            <div class="product-grid">
+              <label class="full-width">
+                <span>产品/描述</span>
+                <textarea class="profit-product-name" rows="2" placeholder="Product / description" aria-label="产品描述"></textarea>
+              </label>
+              <label>
+                <span>数量</span>
+                <input class="profit-qty" type="number" min="0" step="1" value="1" aria-label="数量" />
+              </label>
+              <label>
+                <span>单位</span>
+                <input class="profit-unit" type="text" value="PCS" aria-label="单位" />
+              </label>
+              <label>
+                <span>单重 g</span>
+                <input class="profit-unit-weight" type="number" min="0" step="0.01" value="0" aria-label="单件重量 g" />
+              </label>
+              <label>
+                <span>采购价</span>
+                <input class="profit-purchase" type="number" min="0" step="0.0001" value="0" aria-label="采购价" />
+              </label>
+            </div>
+          </div>
+
+          <div class="product-card-section">
+            <h4>成本与报价</h4>
+            <div class="product-grid">
+              <label>
+                <span>包装方案</span>
+                <select class="profit-packaging-profile" aria-label="包装方案"></select>
+              </label>
+              <label>
+                <span>手动箱数</span>
+                <input class="profit-manual-cartons" type="number" min="0" step="1" placeholder="Auto" aria-label="手动箱数" />
+              </label>
+              <label>
+                <span>手动托盘</span>
+                <input class="profit-manual-pallets" type="number" min="0" step="1" placeholder="Auto" aria-label="手动托盘数" />
+              </label>
+              <label>
+                <span>其他包装成本/件</span>
+                <input class="profit-packing" type="number" min="0" step="0.0001" value="0" aria-label="其他包装成本每件" />
+              </label>
+              <label>
+                <span>自动包装成本/件</span>
+                <output class="profit-packaging-cost-piece">0.0000</output>
+              </label>
+              <label>
+                <span>运费+保险</span>
+                <input class="profit-freight" type="number" min="0" step="0.0001" value="0" aria-label="运费加保险每件" />
+              </label>
+              <label>
+                <span>物流分摊成本/件</span>
+                <output class="profit-logistics-cost-piece">0.0000</output>
+              </label>
+              <label>
+                <span>单件成本</span>
+                <output class="profit-unit-cost">0.0000</output>
+              </label>
+              <label>
+                <span>最低USD</span>
+                <output class="profit-minimum-usd">0.0000</output>
+              </label>
+              <label>
+                <span>建议USD</span>
+                <output class="profit-suggested-usd">0.0000</output>
+              </label>
+              <label>
+                <span>利润率</span>
+                <output class="profit-rate">0.00%</output>
+              </label>
+            </div>
+          </div>
+
+          <div class="product-card-section">
+            <h4>包装计算结果</h4>
+          <div class="packaging-result-strip" aria-label="包装计算结果">
+            <div><span>总重量 KG</span><strong class="profit-total-weight">0.000</strong></div>
+            <div><span>内包装数量</span><strong class="profit-inner-pack-qty">0</strong></div>
+            <div><span>分摊箱数</span><strong class="profit-carton-qty">0</strong></div>
+            <div><span>分摊托盘数</span><strong class="profit-pallet-qty">0</strong></div>
+            <div><span>总CBM</span><strong class="profit-total-cbm">0.000</strong></div>
+            <div><span>包装总成本 RMB</span><strong class="profit-packaging-total">0.00</strong></div>
+          </div>
+          <strong class="profit-packaging-cost-detail hidden-calculator-field">0.0000</strong>
+          </div>
+        </div>
+      </template>
+    </main>
+
+    <script src="packaging.js"></script>
+    <script src="calculator.js"></script>
+  </body>
+</html>
