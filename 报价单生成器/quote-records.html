@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>报价记录</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="calculator-page">
+      <header class="topbar calculator-topbar">
+        <div>
+          <p class="eyebrow">Quote Records · v1.1.0</p>
+          <h1>报价记录</h1>
+        </div>
+        <div class="topbar-actions">
+          <a class="ghost-button nav-button" href="index.html">返回报价单</a>
+          <a class="ghost-button nav-button" href="calculator.html">利润核算器</a>
+          <a class="ghost-button nav-button" href="backup.html">数据备份</a>
+        </div>
+      </header>
+
+      <section class="panel">
+        <div class="section-heading">
+          <h2>历史报价</h2>
+        </div>
+        <div class="form-grid two">
+          <label>
+            <span>搜索</span>
+            <input id="recordSearch" type="search" placeholder="客户名称 / 单号 / 产品名称" />
+          </label>
+          <label>
+            <span>文件类型</span>
+            <select id="recordTypeFilter">
+              <option value="">全部</option>
+              <option value="quotation">Quotation</option>
+              <option value="pi">PI</option>
+              <option value="ci">CI</option>
+              <option value="pl">PL</option>
+            </select>
+          </label>
+        </div>
+        <div id="recordsList" class="records-list" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script src="db.js"></script>
+    <script src="quote-records-store.js"></script>
+    <script src="quote-records.js"></script>
+  </body>
+</html>

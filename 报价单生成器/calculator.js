@@ -708,30 +708,33 @@ function calculatorRows() {
   return [...itemsBody.querySelectorAll(".profit-item-row")].map(readItem);
 }
 
-function saveCalculatorDraft() {
+function calculatorDraftData() {
   const settings = globalSettings();
-  localStorage.setItem(
-    calculatorStorageKey,
-    JSON.stringify({
-      exchangeRate: settings.exchangeRate,
-      targetProfitRate: settings.targetProfitRate,
-      outerPackagingMode: orderOuterPackaging.mode.value,
-      outerCartonId: orderOuterPackaging.cartonId.value,
-      outerInnerPacksPerCarton: orderOuterPackaging.innerPacksPerCarton.value,
-      outerManualCartonQty: orderOuterPackaging.manualCartonQty.value,
-      outerUsePallet: orderOuterPackaging.usePallet.value,
-      outerPalletId: orderOuterPackaging.palletId.value,
-      outerCartonsPerPallet: orderOuterPackaging.cartonsPerPallet.value,
-      outerManualPalletQty: orderOuterPackaging.manualPalletQty.value,
-      orderLogisticsProfileId: orderLogistics.profile.value,
-      orderLogisticsBillingMethod: orderLogistics.billingMethod.value,
-      orderLogisticsAllocationMethod: orderLogistics.allocationMethod.value,
-      items: calculatorRows(),
-    }),
-  );
+  return {
+    exchangeRate: settings.exchangeRate,
+    targetProfitRate: settings.targetProfitRate,
+    outerPackagingMode: orderOuterPackaging.mode.value,
+    outerCartonId: orderOuterPackaging.cartonId.value,
+    outerInnerPacksPerCarton: orderOuterPackaging.innerPacksPerCarton.value,
+    outerManualCartonQty: orderOuterPackaging.manualCartonQty.value,
+    outerUsePallet: orderOuterPackaging.usePallet.value,
+    outerPalletId: orderOuterPackaging.palletId.value,
+    outerCartonsPerPallet: orderOuterPackaging.cartonsPerPallet.value,
+    outerManualPalletQty: orderOuterPackaging.manualPalletQty.value,
+    orderLogisticsProfileId: orderLogistics.profile.value,
+    orderLogisticsBillingMethod: orderLogistics.billingMethod.value,
+    orderLogisticsAllocationMethod: orderLogistics.allocationMethod.value,
+    items: calculatorRows(),
+  };
 }
 
-function generateQuote() {
+function saveCalculatorDraft() {
+  const draft = calculatorDraftData();
+  localStorage.setItem(calculatorStorageKey, JSON.stringify(draft));
+  return draft;
+}
+
+async function generateQuote() {
   const result = calculate();
   if (!result.results.length) {
     generateStatus.textContent = "请先添加至少一个产品。";
@@ -799,10 +802,94 @@ function generateQuote() {
     })),
   };
 
+  quoteData.calculatorData = saveCalculatorDraft();
   localStorage.setItem(quoteStorageKey, JSON.stringify(quoteData));
-  saveCalculatorDraft();
+  try {
+    await QuoteRecordsStore.upsert(QuoteRecordsStore.quoteRecordFromData(quoteData, { total: result.totalUsd }));
+  } catch (error) {
+    console.error(error);
+  }
   generateStatus.textContent = `已生成 ${result.results.length} 个产品的报价单草稿，正在打开报价单页面...`;
   window.location.href = "index.html";
+}
+
+async function saveCalculatorRecord() {
+  const result = calculate();
+  if (!result.results.length) {
+    generateStatus.textContent = "请先添加至少一个产品，再保存草稿。";
+    return;
+  }
+
+  const saved = existingQuoteDraft();
+  const packingNames = [...new Set(result.results.map((item) => item.packagingProfileName).filter(Boolean))].join(" / ");
+  const isCombinedOuterPackaging = result.outerPackagingSettings.mode === "combined";
+  const quoteData = {
+    ...defaults,
+    ...saved,
+    docType: "Quotation",
+    docNo: saved.docNo || documentNumber(),
+    docDate: saved.docDate || new Date().toISOString().slice(0, 10),
+    currency: "USD",
+    exchangeRate: result.settings.exchangeRate,
+    priceMode: "cnyToUsd",
+    packing: packingNames || saved.packing || "",
+    notes: saved.notes || "",
+    orderLogisticsProfileId: orderLogistics.profile.value,
+    orderLogisticsProfileName: result.orderLogistics.profile?.name || "",
+    orderLogisticsCostRmb: result.orderLogistics.logisticsCostRmb,
+    orderLogisticsAllocationMethod: result.orderLogistics.allocationMethod,
+    outerPackagingMode: result.outerPackagingSettings.mode,
+    outerCartonId: result.outerPackagingSettings.cartonId,
+    outerInnerPacksPerCarton: result.outerPackagingSettings.innerPacksPerCarton,
+    outerManualCartonQty: result.outerPackagingSettings.manualCartonQty ?? "",
+    outerUsePallet: result.outerPackagingSettings.usePallet ? "1" : "0",
+    outerPalletId: result.outerPackagingSettings.palletId,
+    outerCartonsPerPallet: result.outerPackagingSettings.cartonsPerPallet,
+    outerManualPalletQty: result.outerPackagingSettings.manualPalletQty ?? "",
+    outerCartonQty: result.orderOuterPackaging.cartonQty,
+    outerPalletQty: result.orderOuterPackaging.palletQty,
+    outerTotalWeightKg: result.orderOuterPackaging.orderTotalWeightKg,
+    outerTotalCbm: result.orderOuterPackaging.totalCbm,
+    outerPackagingCostRmb: result.orderOuterPackaging.outerPackagingCost,
+    calculatorData: saveCalculatorDraft(),
+    items: result.results.map((item, index) => ({
+      image: "",
+      desc: item.productName || "Product",
+      spec: "",
+      material: "",
+      hsCode: "",
+      qty: item.qty || 1,
+      unit: item.unit,
+      unitWeightGram: item.unitWeightGram,
+      packagingProfileId: item.packagingProfileId,
+      packagingProfileName: item.packagingProfileName,
+      logisticsCostRmb: item.logisticsCostRmb,
+      logisticsCostPerPieceRmb: item.logisticsCostPerPieceRmb,
+      manualCartonQty: item.manualCartonQty,
+      manualPalletQty: item.manualPalletQty,
+      cartonQty: item.packaging.cartonQty,
+      palletQty: item.packaging.palletQty,
+      totalWeightKg: item.packaging.totalWeightKg,
+      grossWeightKg: item.packaging.grossWeightKg,
+      totalCbm: item.packaging.totalCbm,
+      packages: isCombinedOuterPackaging ? (index === 0 ? result.orderOuterPackaging.cartonQty : 0) : item.packaging.cartonQty,
+      pallets: isCombinedOuterPackaging ? (index === 0 ? result.orderOuterPackaging.palletQty : 0) : item.packaging.palletQty,
+      netWeight: item.packaging.totalWeightKg,
+      grossWeight: item.packaging.grossWeightKg,
+      cbm: isCombinedOuterPackaging ? (index === 0 ? result.orderOuterPackaging.totalCbm : 0) : item.packaging.totalCbm,
+      rmbPrice: item.suggestedRmb,
+      price: item.suggestedUsd,
+    })),
+  };
+  localStorage.setItem(quoteStorageKey, JSON.stringify(quoteData));
+  try {
+    const record = QuoteRecordsStore.quoteRecordFromData(quoteData, { total: result.totalUsd });
+    const savedRecord = await QuoteRecordsStore.upsert(record);
+    generateStatus.textContent = `已保存到报价记录：${savedRecord.documentNo}`;
+  } catch (error) {
+    console.error(error);
+    generateStatus.textContent = `保存失败：${error.message || error}`;
+  }
 }
 
 function hydrateFromDraft() {
@@ -876,6 +963,7 @@ orderLogistics.allocationMethod.addEventListener("change", calculate);
 document.querySelector("#addProductBtn").addEventListener("click", () => {
   addItemRow({ productName: "", qty: 1, unit: "PCS", unitWeightGram: 0, purchasePrice: 0, packingCost: 0, freightInsurance: 0 });
 });
+document.querySelector("#saveCalculatorRecordBtn").addEventListener("click", saveCalculatorRecord);
 document.querySelector("#generateQuoteBtn").addEventListener("click", generateQuote);
 
 fillOrderLogisticsSelect("");

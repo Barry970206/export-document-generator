@@ -11,15 +11,26 @@
       <section class="workspace" aria-label="报价单编辑区">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Export Documents</p>
+            <p class="eyebrow">Export Documents · v1.1.0</p>
             <h1>外贸报价单发票生成器</h1>
           </div>
           <div class="topbar-actions">
-            <a class="ghost-button nav-button" href="calculator.html" title="打开报价利润核算器">利润核算器</a>
-            <button class="ghost-button" id="togglePreviewBtn" type="button" title="隐藏或显示实时预览">隐藏预览</button>
-            <button class="ghost-button" id="resetBtn" type="button" title="清空当前内容">清空</button>
-            <button class="ghost-button" id="exportExcelBtn" type="button" title="导出 Excel 表格">导出 Excel</button>
-            <button class="primary-button" id="printBtn" type="button" title="打印或另存为 PDF">打印 / PDF</button>
+            <div class="action-group">
+              <a class="ghost-button nav-button" href="calculator.html" title="打开报价利润核算器">核算</a>
+              <a class="ghost-button nav-button" href="quote-records.html" title="打开报价记录">记录</a>
+              <a class="ghost-button nav-button" href="backup.html" title="数据备份与恢复">备份</a>
+            </div>
+            <div class="action-group">
+              <button class="ghost-button" id="saveQuoteRecordBtn" type="button" title="保存当前报价到报价记录">保存</button>
+              <button class="ghost-button" id="saveQuoteRecordAsBtn" type="button" title="另存为一条新报价记录">另存</button>
+            </div>
+            <div class="action-group">
+              <button class="ghost-button" id="togglePreviewBtn" type="button" title="隐藏或显示实时预览">预览</button>
+              <button class="ghost-button" id="resetBtn" type="button" title="清空当前内容">清空</button>
+              <button class="ghost-button" id="exportExcelBtn" type="button" title="导出 Excel 表格">Excel</button>
+              <button class="primary-button" id="printBtn" type="button" title="打印或另存为 PDF">PDF</button>
+            </div>
+            <span id="recordSaveStatus" class="record-save-status" aria-live="polite"></span>
           </div>
         </header>
 
@@ -381,6 +392,8 @@ USB cable 型号 C-01 数量 300 单价 4.8元
       </div>
     </template>
 
+    <script src="db.js"></script>
+    <script src="quote-records-store.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

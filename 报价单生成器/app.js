@@ -11,6 +11,7 @@ const parseStatus = document.querySelector("#parseStatus");
 const togglePreviewBtn = document.querySelector("#togglePreviewBtn");
 const logoFile = document.querySelector("#logoFile");
 const logoPreview = document.querySelector("#logoPreview");
+const recordSaveStatus = document.querySelector("#recordSaveStatus");
 
 const now = new Date();
 function todayString() {
@@ -169,6 +170,7 @@ function termBlock(title, value) {
 function getData() {
   const formData = new FormData(form);
   const data = Object.fromEntries(formData.entries());
+  data.recordId = form.dataset.recordId || "";
   data.docType = formData.get("docType") || defaults.docType;
   data.exchangeRate = currentRate();
   data.shipping = number(data.shipping);
@@ -328,6 +330,49 @@ function calculate(data) {
   const subtotal = data.items.reduce((sum, item) => sum + number(item.qty) * number(item.price), 0);
   const total = Math.max(subtotal + data.shipping - data.discount, 0);
   return { subtotal, total };
+}
+
+function showRecordStatus(message, isError = false) {
+  if (recordSaveStatus) {
+    recordSaveStatus.textContent = message;
+    recordSaveStatus.classList.toggle("error", isError);
+  }
+  if (saveState) saveState.textContent = message;
+}
+
+async function saveQuoteRecord({ asNew = false } = {}) {
+  try {
+    if (!window.QuoteRecordsStore) throw new Error("报价记录模块未加载");
+    const data = getData();
+    if (asNew) {
+      data.recordId = "";
+      data.docNo = QuoteRecordsStore.newDocumentNo(QuoteRecordsStore.documentType(data.docType));
+      data.docDate = QuoteRecordsStore.today();
+      form.dataset.recordId = "";
+      setData(data);
+    }
+    const recordId = asNew ? "" : form.dataset.recordId;
+    const record = QuoteRecordsStore.quoteRecordFromData(data, calculate(data), { id: recordId || undefined });
+    const savedRecord = await QuoteRecordsStore.upsert(record);
+    form.dataset.recordId = savedRecord.id;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ ...getData(), recordId: savedRecord.id }));
+    } catch (error) {
+      console.warn(error);
+    }
+    showRecordStatus(asNew ? "已另存" : "已保存");
+    window.setTimeout(() => {
+      if (recordSaveStatus?.textContent === "已保存" || recordSaveStatus?.textContent === "已另存") {
+        recordSaveStatus.textContent = "";
+      }
+    }, 2200);
+    return savedRecord;
+  } catch (error) {
+    console.error(error);
+    showRecordStatus("保存失败", true);
+    window.alert(`保存失败：${error.message || error}`);
+    return null;
+  }
 }
 
 function packingTotals(items) {
@@ -1006,8 +1051,13 @@ function saveDraft(data) {
   clearTimeout(saveTimer);
   saveState.textContent = "正在保存...";
   saveTimer = setTimeout(() => {
-    localStorage.setItem(storageKey, JSON.stringify(data));
-    saveState.textContent = "已保存草稿";
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(data));
+      saveState.textContent = "已保存草稿";
+    } catch (error) {
+      console.warn(error);
+      saveState.textContent = "草稿过大未自动保存";
+    }
   }, 250);
 }
 
@@ -1023,10 +1073,14 @@ function update() {
 
 function loadDraft() {
   try {
+    const pending = QuoteRecordsStore.pendingOpen?.();
     const saved = JSON.parse(localStorage.getItem(storageKey));
-    setData({ ...(saved || defaults), docDate: todayString() });
+    setData({ ...(saved || defaults), docDate: pending?.id ? (saved?.docDate || todayString()) : todayString() });
+    form.dataset.recordId = pending?.id || saved?.recordId || "";
+    QuoteRecordsStore.clearPendingOpen?.();
   } catch {
     setData({ ...defaults, docDate: todayString() });
+    form.dataset.recordId = "";
   }
   update();
 }
@@ -1036,7 +1090,16 @@ document.querySelector("#addItemBtn").addEventListener("click", () => {
   update();
 });
 
-document.querySelector("#exportExcelBtn").addEventListener("click", exportQuoteExcel);
+document.querySelector("#exportExcelBtn").addEventListener("click", async () => {
+  await saveQuoteRecord();
+  exportQuoteExcel();
+});
+document.querySelector("#saveQuoteRecordBtn").addEventListener("click", () => {
+  saveQuoteRecord();
+});
+document.querySelector("#saveQuoteRecordAsBtn").addEventListener("click", () => {
+  saveQuoteRecord({ asNew: true });
+});
 
   document.querySelectorAll('input[name="docType"]').forEach((input) => {
   input.addEventListener("change", () => {
@@ -1078,7 +1141,8 @@ document.querySelector("#clearPasteBtn").addEventListener("click", () => {
   parseStatus.textContent = "粘贴区已清空。";
 });
 
-document.querySelector("#printBtn").addEventListener("click", () => {
+document.querySelector("#printBtn").addEventListener("click", async () => {
+  await saveQuoteRecord();
   const originalTitle = document.title;
   document.title = buildPdfFileName(getData()).replace(/\.pdf$/i, "");
   window.print();
@@ -1096,6 +1160,7 @@ document.querySelector("#resetBtn").addEventListener("click", () => {
     ...defaults,
     docNo: `QT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(Date.now()).slice(-4)}`,
   });
+  form.dataset.recordId = "";
   bulkInput.value = "";
   parseStatus.textContent = "已清空当前内容。";
   update();

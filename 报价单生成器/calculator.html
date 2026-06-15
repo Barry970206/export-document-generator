@@ -25,13 +25,16 @@
     <main class="calculator-page">
       <header class="topbar calculator-topbar">
         <div>
-          <p class="eyebrow">Profit Calculator</p>
+          <p class="eyebrow">Profit Calculator · v1.1.0</p>
           <h1>报价利润核算器</h1>
         </div>
         <div class="topbar-actions">
           <a class="ghost-button nav-button" href="packaging.html">包装管理</a>
           <a class="ghost-button nav-button" href="logistics.html">物流管理</a>
+          <a class="ghost-button nav-button" href="quote-records.html">打开报价记录</a>
+          <a class="ghost-button nav-button" href="backup.html">数据备份</a>
           <a class="ghost-button nav-button" href="index.html">返回报价单</a>
+          <button class="ghost-button" id="saveCalculatorRecordBtn" type="button">保存草稿</button>
           <button class="primary-button" id="generateQuoteBtn" type="button">生成报价单</button>
         </div>
       </header>
@@ -321,6 +324,8 @@
     </main>
 
     <script src="packaging.js"></script>
+    <script src="db.js"></script>
+    <script src="quote-records-store.js"></script>
     <script src="calculator.js"></script>
   </body>
 </html>

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>数据备份与恢复</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="calculator-page">
+      <header class="topbar calculator-topbar">
+        <div>
+          <p class="eyebrow">Backup · v1.1.0</p>
+          <h1>数据备份与恢复</h1>
+        </div>
+        <div class="topbar-actions">
+          <a class="ghost-button nav-button" href="index.html">返回报价单</a>
+          <a class="ghost-button nav-button" href="quote-records.html">报价记录</a>
+          <a class="ghost-button nav-button" href="calculator.html">利润核算器</a>
+        </div>
+      </header>
+
+      <section class="packaging-manager-layout">
+        <section class="panel">
+          <div class="section-heading">
+            <h2>本地数据备份</h2>
+          </div>
+          <div class="backup-grid">
+            <article class="backup-card">
+              <h3>导出全部数据</h3>
+              <p>导出 IndexedDB 中的报价记录、客户、产品、包装方案、物流方案，以及关键本地草稿和设置。</p>
+              <button class="primary-button" id="exportBackupBtn" type="button">导出 JSON 备份</button>
+            </article>
+            <article class="backup-card">
+              <h3>导入恢复数据</h3>
+              <p>选择之前导出的 JSON 文件。导入会覆盖当前本机的报价记录和关键本地数据。</p>
+              <label class="file-pick-button">
+                <span>选择 JSON 备份文件</span>
+                <input id="importBackupFile" type="file" accept="application/json,.json" />
+              </label>
+            </article>
+          </div>
+          <p id="backupStatus" class="calculator-status">建议定期导出备份文件，保存到电脑或移动硬盘。</p>
+        </section>
+
+        <section class="panel">
+          <div class="section-heading">
+            <h2>当前数据概览</h2>
+          </div>
+          <div id="backupSummary" class="backup-summary" aria-live="polite"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="db.js"></script>
+    <script src="backup.js"></script>
+  </body>
+</html>
