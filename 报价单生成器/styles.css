@@ -2041,12 +2041,10 @@ textarea:focus {
   z-index: 100;
   background: rgba(248, 250, 252, .96);
   backdrop-filter: blur(12px);
-  transition: padding .18s ease, box-shadow .18s ease;
+  transition: box-shadow .18s ease;
 }
 
 .is-scrolled .topbar {
-  padding-top: 10px;
-  padding-bottom: 10px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, .09);
 }
 
