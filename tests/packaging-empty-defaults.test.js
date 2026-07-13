@@ -32,4 +32,18 @@ const afterDelete = loadPackagingDatabase({
 assert.deepEqual(Array.from(afterDelete.getItems()), [], "saved empty materials must remain empty");
 assert.deepEqual(Array.from(afterDelete.getProfiles()), [], "saved empty profiles must remain empty");
 
+const migrated = loadPackagingDatabase({
+  "export-packaging-items-v2": JSON.stringify([
+    { id: "inner-pe-bag", name: "PE Inner Bag", type: "inner" },
+    { id: "carton-export-a", name: "Export Carton A", type: "carton" },
+    { id: "custom-carton", name: "My Carton", type: "carton" },
+  ]),
+  "export-packaging-profiles-v2": JSON.stringify([
+    { id: "standard-export-carton", name: "Standard Export Carton" },
+    { id: "custom-profile", name: "My Profile" },
+  ]),
+});
+assert.deepEqual(Array.from(migrated.getItems(), (item) => item.id), ["custom-carton"], "legacy example materials must be removed");
+assert.deepEqual(Array.from(migrated.getProfiles(), (profile) => profile.id), ["custom-profile"], "legacy example profiles must be removed");
+
 console.log("packaging-empty-defaults tests passed");

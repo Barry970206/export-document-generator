@@ -142,6 +142,10 @@
     },
   ];
 
+  const legacyCleanupMarkerKey = "export-packaging-clean-defaults-v1";
+  const legacyDefaultItemIds = new Set(examplePackagingItems.map((item) => item.id));
+  const legacyDefaultProfileIds = new Set(examplePackagingProfiles.map((profile) => profile.id));
+
   const typeLabels = {
     zh: { inner: "内包装", carton: "纸箱", pallet: "托盘", accessory: "辅料" },
     en: { inner: "inner", carton: "carton", pallet: "pallet", accessory: "accessory" },
@@ -252,6 +256,24 @@
     const normalized = list.map((entry) => normalize({ ...entry, updatedAt: now }));
     localStorage.setItem(key, JSON.stringify(normalized));
     return normalized;
+  }
+
+  function removeLegacyDefaultExamples() {
+    if (localStorage.getItem(legacyCleanupMarkerKey) === "1") return;
+    [
+      [itemStorageKey, legacyDefaultItemIds],
+      [profileStorageKey, legacyDefaultProfileIds],
+    ].forEach(([key, legacyIds]) => {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key));
+        if (!Array.isArray(parsed)) return;
+        const filtered = parsed.filter((entry) => !legacyIds.has(entry?.id));
+        if (filtered.length !== parsed.length) localStorage.setItem(key, JSON.stringify(filtered));
+      } catch {
+        // Invalid local data is left untouched and handled by readList.
+      }
+    });
+    localStorage.setItem(legacyCleanupMarkerKey, "1");
   }
 
   function findById(list, id) {
@@ -370,6 +392,8 @@
       usePallet,
     };
   }
+
+  removeLegacyDefaultExamples();
 
   const database = {
     getItems: () => readList(itemStorageKey, defaultPackagingItems, normalizeItem),
