@@ -46,4 +46,18 @@ const migrated = loadPackagingDatabase({
 assert.deepEqual(Array.from(migrated.getItems(), (item) => item.id), ["custom-carton"], "legacy example materials must be removed");
 assert.deepEqual(Array.from(migrated.getProfiles(), (profile) => profile.id), ["custom-profile"], "legacy example profiles must be removed");
 
+const importer = loadPackagingDatabase({
+  "export-packaging-items-v2": JSON.stringify([{ id: "custom-carton", name: "My Carton", type: "carton" }]),
+  "export-packaging-profiles-v2": "[]",
+  "export-packaging-clean-defaults-v1": "1",
+});
+const firstImport = importer.importExamples();
+assert.equal(firstImport.addedItems, 5, "all missing example materials must be imported");
+assert.equal(firstImport.addedProfiles, 4, "all missing example profiles must be imported");
+assert.equal(firstImport.items.length, 6, "existing custom material must be preserved");
+assert.equal(firstImport.items.find((item) => item.id === "inner-pe-bag").nameZh.endsWith("（示例）"), true, "imported material must be labeled as example");
+const secondImport = importer.importExamples();
+assert.equal(secondImport.addedItems, 0, "repeated import must not duplicate materials");
+assert.equal(secondImport.addedProfiles, 0, "repeated import must not duplicate profiles");
+
 console.log("packaging-empty-defaults tests passed");

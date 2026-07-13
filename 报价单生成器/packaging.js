@@ -216,6 +216,7 @@
       capacityKg: optionalNumber(item.capacityKg),
       tareWeightKg: Math.max(number(item.tareWeightKg), 0),
       remark: String(item.remark || "").trim(),
+      isExample: Boolean(item.isExample),
       ...withDates(item),
     };
   }
@@ -237,6 +238,7 @@
       cartonsPerPallet: optionalNumber(profile.cartonsPerPallet),
       usePallet: Boolean(profile.usePallet),
       remark: String(profile.remark || "").trim(),
+      isExample: Boolean(profile.isExample),
       ...withDates(profile),
     };
   }
@@ -274,6 +276,25 @@
       }
     });
     localStorage.setItem(legacyCleanupMarkerKey, "1");
+  }
+
+  function importExamples() {
+    const items = readList(itemStorageKey, defaultPackagingItems, normalizeItem);
+    const profiles = readList(profileStorageKey, defaultPackagingProfiles, normalizeProfile);
+    const itemIds = new Set(items.map((item) => item.id));
+    const profileIds = new Set(profiles.map((profile) => profile.id));
+    const missingItems = examplePackagingItems
+      .filter((item) => !itemIds.has(item.id))
+      .map((item) => ({ ...item, name: `${item.name} (Example)`, nameZh: `${item.nameZh}（示例）`, isExample: true }));
+    const missingProfiles = examplePackagingProfiles
+      .filter((profile) => !profileIds.has(profile.id))
+      .map((profile) => ({ ...profile, name: `${profile.name} (Example)`, nameZh: `${profile.nameZh}（示例）`, isExample: true }));
+    return {
+      items: saveList(itemStorageKey, [...items, ...missingItems], normalizeItem),
+      profiles: saveList(profileStorageKey, [...profiles, ...missingProfiles], normalizeProfile),
+      addedItems: missingItems.length,
+      addedProfiles: missingProfiles.length,
+    };
   }
 
   function findById(list, id) {
@@ -404,6 +425,7 @@
       localStorage.removeItem(itemStorageKey);
       localStorage.removeItem(profileStorageKey);
     },
+    importExamples,
     calculate: calculatePackaging,
     cbmFromDimensions,
     displayName,
@@ -672,6 +694,26 @@
       renderPackagingItems();
       renderPackagingProfiles();
     }
+
+    document.querySelector("#importPackagingExamplesBtn")?.addEventListener("click", () => {
+      const confirmed = window.confirm("将导入示例包装物料和包装方案，已有数据不会被覆盖。示例数据仅用于功能演示，请根据实际尺寸、容量和成本进行修改。是否继续？");
+      if (!confirmed) return;
+      try {
+        saveFromRows();
+        const result = database.importExamples();
+        items = result.items;
+        profiles = result.profiles;
+        render();
+        if (!result.addedItems && !result.addedProfiles) {
+          window.alert("示例数据已存在，没有重复导入。");
+          return;
+        }
+        window.alert(`示例数据导入成功：${result.addedItems} 个包装物料，${result.addedProfiles} 个包装方案。`);
+      } catch (error) {
+        console.error(error);
+        window.alert("示例数据导入失败，请稍后重试。");
+      }
+    });
 
     document.querySelector("#addPackagingItemBtn").addEventListener("click", () => {
       updatePackagingItems([
