@@ -3,7 +3,8 @@
   const profileStorageKey = "export-packaging-profiles-v2";
   const languageStorageKey = "export-packaging-language-v1";
 
-  const defaultPackagingItems = [
+  const defaultPackagingItems = [];
+  const examplePackagingItems = [
     {
       id: "inner-pe-bag",
       name: "PE Inner Bag",
@@ -81,7 +82,8 @@
     },
   ];
 
-  const defaultPackagingProfiles = [
+  const defaultPackagingProfiles = [];
+  const examplePackagingProfiles = [
     {
       id: "inner-box-only",
       name: "Inner Box Only",
@@ -238,7 +240,7 @@
   function readList(key, defaults, normalize) {
     try {
       const parsed = JSON.parse(localStorage.getItem(key));
-      const source = Array.isArray(parsed) && parsed.length ? parsed : defaults;
+      const source = Array.isArray(parsed) ? parsed : defaults;
       return source.map(normalize);
     } catch {
       return defaults.map(normalize);
