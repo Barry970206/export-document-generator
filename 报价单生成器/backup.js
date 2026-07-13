@@ -10,6 +10,7 @@
     "export-packaging-profiles-v2",
     "export-packaging-language-v1",
     "logisticsProfiles",
+    "quoteRecordFolders",
   ];
 
   const exportButton = document.querySelector("#exportBackupBtn");
@@ -117,16 +118,27 @@
     return `${date}-${time}`;
   }
 
-  function downloadJson(data) {
+  async function downloadJson(data) {
+    const fileName = `ExportDocumentBackup-${timestamp()}.json`;
+    if (window.desktopApp?.saveFile) {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
+      const bytes = [...new Uint8Array(await blob.arrayBuffer())];
+      return window.desktopApp.saveFile({
+        fileName,
+        bytes,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+    }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `ExportDocumentBackup-${timestamp()}.json`;
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+    return { status: "saved" };
   }
 
   function validateBackup(data) {
@@ -163,8 +175,8 @@
         indexedDB: await exportIndexedDB(),
         localStorage: exportLocalStorage(),
       };
-      downloadJson(backup);
-      setStatus("备份文件已导出。");
+      const result = await downloadJson(backup);
+      setStatus(result?.status === "cancelled" ? "已取消导出备份。" : "备份文件已导出。");
       await buildSummary();
     } catch (error) {
       console.error(error);

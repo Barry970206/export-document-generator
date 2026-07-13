@@ -305,8 +305,17 @@
     } else if (innerPackage && innerMaxWeightKg > 0) {
       innerPackQty = Math.ceil(totalWeightKg / innerMaxWeightKg);
     }
+    const cartonCapacityPcs = Math.max(number(carton?.capacityPcs), 0);
+    const cartonCapacityKg = Math.max(number(carton?.capacityKg), 0);
     const weightCartonQty = number(carton?.maxWeightKg) > 0 ? Math.ceil(totalWeightKg / number(carton.maxWeightKg)) : 0;
-    const calculatedCartonQty = innerPackQty > 0 && innerPacksPerCarton > 0 ? Math.ceil(innerPackQty / innerPacksPerCarton) : weightCartonQty;
+    const calculatedCartonQty =
+      innerPackQty > 0 && innerPacksPerCarton > 0
+        ? Math.ceil(innerPackQty / innerPacksPerCarton)
+        : cartonCapacityPcs > 0
+          ? Math.ceil(quantity / cartonCapacityPcs)
+          : cartonCapacityKg > 0
+            ? Math.ceil(totalWeightKg / cartonCapacityKg)
+            : weightCartonQty;
     const manualCartonQty = hasManualValue(input?.manualCartonQty) ? Math.max(Math.ceil(number(input.manualCartonQty)), 0) : null;
     const cartonQty = manualCartonQty !== null ? manualCartonQty : calculatedCartonQty;
     const usePallet = Boolean(selectedProfile.usePallet);
@@ -324,7 +333,8 @@
       usePallet && cartonLengthCm > 0 && cartonWidthCm > 0 && palletLengthCm > 0 && palletWidthCm > 0
         ? Math.floor(palletLengthCm / cartonLengthCm) * Math.floor(palletWidthCm / cartonWidthCm)
         : 0;
-    const layers = usePallet && cartonsPerLayer > 0 ? Math.ceil(cartonQty / cartonsPerLayer) : 0;
+    const cartonsOnEachPallet = palletQty > 0 ? Math.ceil(cartonQty / palletQty) : 0;
+    const layers = usePallet && cartonsPerLayer > 0 && cartonsOnEachPallet > 0 ? Math.ceil(cartonsOnEachPallet / cartonsPerLayer) : 0;
     const loadedPalletHeightCm = usePallet && palletQty > 0 ? palletHeightCm + layers * cartonHeightCm : 0;
     const palletCbm =
       usePallet && palletQty > 0 && palletLengthCm > 0 && palletWidthCm > 0 && loadedPalletHeightCm > 0

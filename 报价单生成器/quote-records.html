@@ -10,7 +10,7 @@
     <main class="calculator-page">
       <header class="topbar calculator-topbar">
         <div>
-          <p class="eyebrow">Quote Records · v1.1.0</p>
+          <p class="eyebrow">报价记录 · 开源版 · v1.1.0</p>
           <h1>报价记录</h1>
         </div>
         <div class="topbar-actions">
@@ -24,28 +24,41 @@
         <div class="section-heading">
           <h2>历史报价</h2>
         </div>
-        <div class="form-grid two">
-          <label>
-            <span>搜索</span>
-            <input id="recordSearch" type="search" placeholder="客户名称 / 单号 / 产品名称" />
-          </label>
-          <label>
-            <span>文件类型</span>
-            <select id="recordTypeFilter">
-              <option value="">全部</option>
-              <option value="quotation">Quotation</option>
-              <option value="pi">PI</option>
-              <option value="ci">CI</option>
-              <option value="pl">PL</option>
-            </select>
-          </label>
+        <div class="records-layout">
+          <aside class="records-sidebar" aria-label="报价记录文件夹">
+            <div class="record-folder-toolbar">
+              <button class="ghost-button compact" id="addRecordFolderBtn" type="button">新建文件夹</button>
+              <button class="ghost-button compact" id="renameRecordFolderBtn" type="button">重命名</button>
+              <button class="ghost-button compact" id="deleteRecordFolderBtn" type="button">删除</button>
+            </div>
+            <div id="recordFolderList" class="record-folder-list"></div>
+          </aside>
+          <section class="records-content" aria-label="报价记录列表">
+            <div class="form-grid two records-filters">
+              <label>
+                <span>搜索</span>
+                <input id="recordSearch" type="search" placeholder="客户名称 / 单号 / 产品名称 / 备注" />
+              </label>
+              <label>
+                <span>文件类型</span>
+                <select id="recordTypeFilter">
+                  <option value="">全部</option>
+                  <option value="quotation">Quotation</option>
+                  <option value="pi">PI</option>
+                  <option value="ci">CI</option>
+                  <option value="pl">PL</option>
+                </select>
+              </label>
+            </div>
+            <div id="recordsList" class="records-list" aria-live="polite"></div>
+          </section>
         </div>
-        <div id="recordsList" class="records-list" aria-live="polite"></div>
       </section>
     </main>
 
     <script src="db.js"></script>
     <script src="quote-records-store.js"></script>
+    <script src="navigation.js"></script>
     <script src="quote-records.js"></script>
   </body>
 </html>

@@ -11,7 +11,7 @@
       <section class="workspace" aria-label="报价单编辑区">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Export Documents · v1.1.0</p>
+            <p class="eyebrow">开源版 · v1.1.0</p>
             <h1>外贸报价单发票生成器</h1>
           </div>
           <div class="topbar-actions">
@@ -227,6 +227,10 @@ USB cable 型号 C-01 数量 300 单价 4.8元
                 <span>材质 / 表面处理</span>
                 <span>HS Code</span>
                 <span>数量</span>
+                <span class="pl-only-col">Inner Qty</span>
+                <span class="pl-only-col">Inner Unit</span>
+                <span class="pl-only-col">Boxes / Carton</span>
+                <span class="pl-only-col">Packing Details</span>
                 <span class="pl-only-col">Packages</span>
                 <span class="pl-only-col">Pallets</span>
                 <span class="pl-only-col">N.W.</span>
@@ -298,7 +302,15 @@ USB cable 型号 C-01 数量 300 单价 4.8元
                 <input id="countryOfOrigin" name="countryOfOrigin" type="text" placeholder="China" />
               </label>
               <label>
-                <span>运费（报价币种）</span>
+                <span>运费显示方式</span>
+                <select id="shippingMode" name="shippingMode">
+                  <option value="custom">Custom Amount</option>
+                  <option value="notIncluded">Not Included</option>
+                  <option value="included">Included</option>
+                </select>
+              </label>
+              <label>
+                <span>运费金额（报价币种）</span>
                 <input id="shipping" name="shipping" type="number" min="0" step="0.01" value="0" />
               </label>
               <label>
@@ -306,7 +318,7 @@ USB cable 型号 C-01 数量 300 单价 4.8元
                 <input id="discount" name="discount" type="number" min="0" step="0.01" value="0" />
               </label>
             </div>
-            <label class="notes-field ci-only-field">
+            <label class="notes-field declaration-field">
               <span>Declaration</span>
               <textarea id="declaration" name="declaration" rows="3" placeholder="Declaration statement for commercial invoice"></textarea>
             </label>
@@ -370,6 +382,10 @@ USB cable 型号 C-01 数量 300 单价 4.8元
           <input class="item-qty" type="number" min="0" step="1" value="1" aria-label="数量" />
           <input class="item-unit unit-suffix-input" type="text" value="PCS" aria-label="数量单位" />
         </div>
+        <input class="item-inner-qty" type="number" min="0" step="1" value="" placeholder="250" aria-label="Inner Qty" />
+        <input class="item-inner-unit" type="text" value="pcs/box" aria-label="Inner Unit" />
+        <input class="item-boxes-per-carton" type="number" min="0" step="1" value="" placeholder="4" aria-label="Boxes per Carton" />
+        <textarea class="item-packing-details" rows="2" placeholder="Auto or manual packing details" aria-label="Packing Details"></textarea>
         <div class="unit-input item-package-wrap" data-unit="CARTONS">
           <input class="item-package" type="number" min="0" step="1" value="0" aria-label="Packages" />
         </div>
@@ -392,8 +408,22 @@ USB cable 型号 C-01 数量 300 单价 4.8元
       </div>
     </template>
 
+    <dialog id="saveRecordDialog" class="record-dialog">
+      <form method="dialog">
+        <h2>保存报价记录</h2>
+        <label><span>文件夹 / 分类</span><select id="saveRecordFolder"><option value="">未分类</option></select></label>
+        <label><span>新建文件夹（可选）</span><input id="saveRecordNewFolder" type="text" /></label>
+        <label><span>保存备注</span><textarea id="saveRecordRemark" rows="4"></textarea></label>
+        <div class="dialog-actions">
+          <button value="cancel" class="ghost-button">取消</button>
+          <button value="confirm" class="primary-button">确认保存</button>
+        </div>
+      </form>
+    </dialog>
+
     <script src="db.js"></script>
     <script src="quote-records-store.js"></script>
+    <script src="navigation.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

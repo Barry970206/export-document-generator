@@ -12,6 +12,7 @@ const togglePreviewBtn = document.querySelector("#togglePreviewBtn");
 const logoFile = document.querySelector("#logoFile");
 const logoPreview = document.querySelector("#logoPreview");
 const recordSaveStatus = document.querySelector("#recordSaveStatus");
+let recordStatusTimer;
 
 const now = new Date();
 function todayString() {
@@ -57,6 +58,7 @@ const defaults = {
   bankAccount: "",
   bankSwift: "",
   bankAddress: "",
+  shippingMode: "notIncluded",
   shipping: 0,
   discount: 0,
   notes: "",
@@ -139,6 +141,12 @@ function quantityWithUnit(value, unit) {
   return [quantity(value), text(unit, "PCS")].filter(Boolean).join(" ");
 }
 
+function packingQuantity(value) {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(Math.floor(number(value)));
+}
+
 function fixedUnit(value, unit, decimals = 0) {
   const formatted = decimals > 0 ? number(value).toFixed(decimals) : quantity(value);
   return `${formatted} ${unit}`;
@@ -167,12 +175,67 @@ function termBlock(title, value) {
   return clean ? `<div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(clean)}</p></div>` : "";
 }
 
+function optionalParagraph(value) {
+  const clean = text(value, "");
+  return clean ? `<p>${escapeHtml(clean)}</p>` : "";
+}
+
+function contactChips(items) {
+  const chips = items
+    .map(([label, value]) => [label, text(value, "")])
+    .filter(([, value]) => value);
+  if (!chips.length) return "";
+  return `<div class="doc-contact-chips">${chips.map(([label, value]) => `<span><b>${escapeHtml(label)}:</b> ${escapeHtml(value)}</span>`).join("")}</div>`;
+}
+
+function validEmail(value) {
+  const clean = text(value, "");
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean) ? clean : "";
+}
+
+function generatePackingDetails(qty, innerQty, innerUnit, boxesPerCarton) {
+  const totalQty = Math.floor(number(qty));
+  const perInner = Math.floor(number(innerQty));
+  const boxes = Math.floor(number(boxesPerCarton));
+  if (totalQty <= 0 || perInner <= 0 || boxes <= 0) return "";
+
+  const fullCartonQty = perInner * boxes;
+  const fullCartons = Math.floor(totalQty / fullCartonQty);
+  const remainingQty = totalQty % fullCartonQty;
+  const unit = text(innerUnit, "pcs/box");
+  const header = `${packingQuantity(perInner)} ${unit}, ${packingQuantity(boxes)} boxes/carton`;
+  const parts = [];
+  if (fullCartons > 0) parts.push(`${packingQuantity(fullCartons)} cartons × ${packingQuantity(fullCartonQty)} pcs`);
+  if (remainingQty > 0) parts.push(`1 carton × ${packingQuantity(remainingQty)} pcs`);
+  return `${header}\n${parts.join(" + ")}`;
+}
+
+function syncPackingDetails(row) {
+  const detailsField = row.querySelector(".item-packing-details");
+  const generated = generatePackingDetails(
+    row.querySelector(".item-qty").value,
+    row.querySelector(".item-inner-qty").value,
+    row.querySelector(".item-inner-unit").value,
+    row.querySelector(".item-boxes-per-carton").value,
+  );
+  const wasAuto = row.dataset.packingDetailsManual !== "1";
+  const matchesPreviousAuto = detailsField.value === (row.dataset.generatedPackingDetails || "");
+  row.dataset.generatedPackingDetails = generated;
+  if (wasAuto || matchesPreviousAuto) {
+    detailsField.value = generated;
+    row.dataset.packingDetailsManual = "0";
+  }
+}
+
 function getData() {
   const formData = new FormData(form);
   const data = Object.fromEntries(formData.entries());
+  data.folderId = form.dataset.folderId || "";
+  data.saveRemark = form.dataset.saveRemark || "";
   data.recordId = form.dataset.recordId || "";
   data.docType = formData.get("docType") || defaults.docType;
   data.exchangeRate = currentRate();
+  data.shippingMode = data.shippingMode || (number(data.shipping) > 0 ? "custom" : defaults.shippingMode);
   data.shipping = number(data.shipping);
   data.discount = number(data.discount);
   data.items = [...itemsBody.querySelectorAll(".item-row")].map((row) => {
@@ -191,6 +254,11 @@ function getData() {
       packagingProfileName: row.dataset.packagingProfileName || "",
       manualCartonQty: row.dataset.manualCartonQty || "",
       manualPalletQty: row.dataset.manualPalletQty || "",
+      innerQty: number(row.querySelector(".item-inner-qty").value),
+      innerUnit: row.querySelector(".item-inner-unit").value,
+      boxesPerCarton: number(row.querySelector(".item-boxes-per-carton").value),
+      packingDetails: row.querySelector(".item-packing-details").value,
+      packingDetailsManual: row.dataset.packingDetailsManual === "1",
       packages: number(row.querySelector(".item-package").value),
       pallets: number(row.querySelector(".item-pallets").value),
       netWeight: number(row.querySelector(".item-net-weight").value),
@@ -224,6 +292,11 @@ function normalizeSavedItem(item) {
     packagingProfileName: item.packagingProfileName || "",
     manualCartonQty: item.manualCartonQty ?? "",
     manualPalletQty: item.manualPalletQty ?? "",
+    innerQty: number(item.innerQty),
+    innerUnit: item.innerUnit || "pcs/box",
+    boxesPerCarton: number(item.boxesPerCarton),
+    packingDetails: item.packingDetails || "",
+    packingDetailsManual: Boolean(item.packingDetailsManual),
     packages: number(item.packages ?? item.cartonQty),
     pallets: number(item.pallets ?? item.palletQty),
     netWeight: number(item.netWeight ?? item.totalWeightKg),
@@ -241,6 +314,7 @@ function normalizeSavedItem(item) {
 
 function setData(data) {
   const merged = { ...defaults, ...data };
+  if (!data?.shippingMode) merged.shippingMode = number(merged.shipping) > 0 ? "custom" : defaults.shippingMode;
   Object.entries(merged).forEach(([key, value]) => {
     if (key === "items") return;
     const field = form.elements[key];
@@ -263,6 +337,7 @@ function addItemRow(item = { image: "", desc: "", spec: "", material: "", hsCode
   row.dataset.packagingProfileName = item.packagingProfileName || "";
   row.dataset.manualCartonQty = item.manualCartonQty ?? "";
   row.dataset.manualPalletQty = item.manualPalletQty ?? "";
+  row.dataset.packingDetailsManual = item.packingDetailsManual ? "1" : "0";
   if (item.image) imagePreview.src = item.image;
   row.querySelector(".item-desc").value = item.desc || "";
   row.querySelector(".item-spec").value = item.spec || "";
@@ -270,6 +345,10 @@ function addItemRow(item = { image: "", desc: "", spec: "", material: "", hsCode
   row.querySelector(".item-hs-code").value = item.hsCode || "";
   row.querySelector(".item-qty").value = number(item.qty, 1);
   row.querySelector(".item-unit").value = item.unit || "PCS";
+  row.querySelector(".item-inner-qty").value = number(item.innerQty) || "";
+  row.querySelector(".item-inner-unit").value = item.innerUnit || "pcs/box";
+  row.querySelector(".item-boxes-per-carton").value = number(item.boxesPerCarton) || "";
+  row.querySelector(".item-packing-details").value = item.packingDetails || "";
   row.querySelector(".item-package").value = number(item.packages);
   row.querySelector(".item-pallets").value = number(item.pallets);
   row.querySelector(".item-net-weight").value = number(item.netWeight);
@@ -298,7 +377,11 @@ function addItemRow(item = { image: "", desc: "", spec: "", material: "", hsCode
       convertRmbToUsd(row);
     }
   });
+  row.querySelector(".item-packing-details").addEventListener("input", () => {
+    row.dataset.packingDetailsManual = row.querySelector(".item-packing-details").value === (row.dataset.generatedPackingDetails || "") ? "0" : "1";
+  });
   row.querySelectorAll("input").forEach((input) => input.addEventListener("input", update));
+  row.querySelectorAll("textarea").forEach((textarea) => textarea.addEventListener("input", update));
   itemsBody.append(row);
   updateRow(row);
 }
@@ -307,6 +390,7 @@ function updateRow(row) {
   const qty = number(row.querySelector(".item-qty").value);
   const priceField = row.querySelector(".item-price");
   const price = number(priceField.value);
+  syncPackingDetails(row);
 
   priceField.readOnly = false;
   priceField.title = "可自由填写；切换到人民币自动换算时，输入人民币会自动填入美元";
@@ -328,22 +412,93 @@ function convertAllRmbToUsd() {
 
 function calculate(data) {
   const subtotal = data.items.reduce((sum, item) => sum + number(item.qty) * number(item.price), 0);
-  const total = Math.max(subtotal + data.shipping - data.discount, 0);
+  const shippingCharge = data.shippingMode === "custom" ? number(data.shipping) : 0;
+  const total = Math.max(subtotal + shippingCharge - data.discount, 0);
   return { subtotal, total };
 }
 
+function shippingDisplay(data, currency) {
+  if (data.shippingMode === "included") return "Included";
+  if (data.shippingMode === "notIncluded") return "Not Included";
+  return money(data.shipping, currency);
+}
+
+function updateShippingControls(data = getData()) {
+  const shippingField = form.elements.shipping;
+  if (!shippingField) return;
+  const isCustom = data.shippingMode === "custom";
+  shippingField.readOnly = !isCustom;
+  shippingField.closest("label")?.classList.toggle("muted-field", !isCustom);
+}
+
 function showRecordStatus(message, isError = false) {
+  clearTimeout(recordStatusTimer);
   if (recordSaveStatus) {
     recordSaveStatus.textContent = message;
     recordSaveStatus.classList.toggle("error", isError);
   }
   if (saveState) saveState.textContent = message;
+  const toast = ensureRecordStatusToast();
+  toast.textContent = message;
+  toast.classList.toggle("error", isError);
+  toast.classList.add("visible");
+  recordStatusTimer = setTimeout(() => {
+    toast.classList.remove("visible");
+    if (!isError && recordSaveStatus?.textContent === message) recordSaveStatus.textContent = "";
+  }, isError ? 6500 : 3200);
+}
+
+function ensureRecordStatusToast() {
+  let toast = document.querySelector("#recordStatusToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "recordStatusToast";
+    toast.className = "record-status-toast";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "assertive");
+    document.body.append(toast);
+  }
+  return toast;
+}
+
+function requestRecordMetadata(data) {
+  const dialog = document.querySelector("#saveRecordDialog");
+  const folderSelect = document.querySelector("#saveRecordFolder");
+  const newFolder = document.querySelector("#saveRecordNewFolder");
+  const remark = document.querySelector("#saveRecordRemark");
+  if (!dialog || !folderSelect || !newFolder || !remark) {
+    return Promise.resolve({ folderId: data.folderId || "", saveRemark: data.saveRemark || "" });
+  }
+  folderSelect.innerHTML = `<option value="">未分类</option>${QuoteRecordsStore.folders().map((folder) => `<option value="${escapeHtml(folder.id)}">${escapeHtml(folder.name)}</option>`).join("")}`;
+  folderSelect.value = data.folderId || "";
+  newFolder.value = "";
+  remark.value = data.saveRemark || "";
+  if (typeof dialog.showModal !== "function") {
+    const note = window.prompt("保存备注（可选）", data.saveRemark || "");
+    if (note === null) return Promise.resolve(null);
+    return Promise.resolve({ folderId: data.folderId || "", saveRemark: note.trim() });
+  }
+  dialog.showModal();
+  return new Promise((resolve, reject) => dialog.addEventListener("close", () => {
+    try {
+      if (dialog.returnValue !== "confirm") return resolve(null);
+      let folderId = folderSelect.value;
+      if (newFolder.value.trim()) folderId = QuoteRecordsStore.createFolder(newFolder.value).id;
+      resolve({ folderId, saveRemark: remark.value.trim() });
+    } catch (error) {
+      reject(error);
+    }
+  }, { once: true }));
 }
 
 async function saveQuoteRecord({ asNew = false } = {}) {
   try {
     if (!window.QuoteRecordsStore) throw new Error("报价记录模块未加载");
     const data = getData();
+    const metadata = await requestRecordMetadata(data);
+    if (!metadata) return { status: "cancelled" };
+    data.folderId = metadata.folderId;
+    data.saveRemark = metadata.saveRemark;
     if (asNew) {
       data.recordId = "";
       data.docNo = QuoteRecordsStore.newDocumentNo(QuoteRecordsStore.documentType(data.docType));
@@ -352,9 +507,11 @@ async function saveQuoteRecord({ asNew = false } = {}) {
       setData(data);
     }
     const recordId = asNew ? "" : form.dataset.recordId;
-    const record = QuoteRecordsStore.quoteRecordFromData(data, calculate(data), { id: recordId || undefined });
+    const record = QuoteRecordsStore.quoteRecordFromData(data, calculate(data), { id: recordId || undefined, ...metadata });
     const savedRecord = await QuoteRecordsStore.upsert(record);
     form.dataset.recordId = savedRecord.id;
+    form.dataset.folderId = metadata.folderId;
+    form.dataset.saveRemark = metadata.saveRemark;
     try {
       localStorage.setItem(storageKey, JSON.stringify({ ...getData(), recordId: savedRecord.id }));
     } catch (error) {
@@ -366,12 +523,13 @@ async function saveQuoteRecord({ asNew = false } = {}) {
         recordSaveStatus.textContent = "";
       }
     }, 2200);
-    return savedRecord;
+    return { status: "saved", record: savedRecord };
   } catch (error) {
     console.error(error);
-    showRecordStatus("保存失败", true);
-    window.alert(`保存失败：${error.message || error}`);
-    return null;
+    const message = `保存失败：${error.message || error}`;
+    showRecordStatus(message, true);
+    window.alert(message);
+    throw error;
   }
 }
 
@@ -505,6 +663,15 @@ function buildPdfFileName(data) {
   return `${code}-${buyer}-${date}.pdf`;
 }
 
+function exportTimeStamp(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+}
+
+function buildVersionedPdfFileName(data) {
+  return buildPdfFileName(data).replace(/\.pdf$/i, `-${exportTimeStamp()}.pdf`);
+}
+
 function buildExcelFileName(data) {
   return buildPdfFileName(data).replace(/\.pdf$/i, ".xls");
 }
@@ -531,6 +698,25 @@ function csvEscape(value) {
 }
 
 function downloadBlob(content, fileName, type) {
+  if (window.desktopApp?.saveFile) {
+    (async () => {
+      try {
+        const blob = new Blob([content], { type });
+        const bytes = [...new Uint8Array(await blob.arrayBuffer())];
+        const extension = fileName.split(".").pop() || "";
+        const result = await window.desktopApp.saveFile({
+          fileName,
+          bytes,
+          filters: extension ? [{ name: extension.toUpperCase(), extensions: [extension] }] : undefined,
+        });
+        if (result?.status === "saved") showRecordStatus(`文件已保存：${result.filePath}`);
+        else showRecordStatus("已取消保存文件");
+      } catch (error) {
+        showRecordStatus(`文件保存失败：${error.message || error}`, true);
+      }
+    })();
+    return;
+  }
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -660,7 +846,7 @@ function exportQuoteExcel() {
     excelRow([labelCell("Company"), valueCell(data.sellerName, 2), "", labelCell("Company"), valueCell(data.buyerName, 3), ""]),
     excelRow([labelCell("Address"), valueCell(data.sellerAddress, 2), "", labelCell("Address"), valueCell(data.buyerAddress, 3), ""]),
     excelRow([labelCell("Contact"), valueCell(data.sellerContact, 2), "", labelCell("Country"), valueCell(data.buyerCountry, 3), ""]),
-    excelRow([labelCell("Email"), valueCell(data.sellerEmail, 2), "", labelCell("Contact"), valueCell(data.buyerContact, 3), ""]),
+    excelRow([labelCell("Email"), valueCell(validEmail(data.sellerEmail), 2), "", labelCell("Contact"), valueCell(data.buyerContact, 3), ""]),
     excelRow([labelCell("Website"), valueCell(data.sellerWebsite, 2), "", labelCell("Email"), valueCell(data.buyerEmail, 3), ""]),
     excelRow([labelCell("Phone / WhatsApp"), valueCell(data.sellerPhone, 2), "", "", "", "", "", "", ""]),
     excelRow([""]),
@@ -675,10 +861,10 @@ function exportQuoteExcel() {
       ? [
           { value: "Description", style: "Header" },
           { value: "Qty", style: "Header" },
+          { value: "Packing", style: "Header" },
           { value: "Packages", style: "Header" },
           { value: "N.W.", style: "Header" },
           { value: "G.W.", style: "Header" },
-          { value: "", style: "Header" },
           { value: "", style: "Header" },
           { value: "", style: "Header" },
           { value: "", style: "Header" },
@@ -710,10 +896,10 @@ function exportQuoteExcel() {
       ? [
           valueCell(item.desc),
           valueCell(quantityWithUnit(item.qty, item.unit)),
+          valueCell(item.packingDetails),
           valueCell(fixedUnit(item.packages, packageUnitLabel)),
           valueCell(fixedUnit(item.netWeight, "KGS", 3)),
           valueCell(fixedUnit(item.grossWeight, "KGS", 3)),
-          valueCell(""),
           valueCell(""),
           valueCell(""),
           valueCell(""),
@@ -744,10 +930,14 @@ function exportQuoteExcel() {
   ];
 
   if (!isPackingList) {
+    const shippingCell =
+      data.shippingMode === "custom"
+        ? numberCell(number(data.shipping).toFixed(2), "Money")
+        : valueCell(data.shippingMode === "included" ? "Included" : "Not Included");
     rows.push(
       excelRow([""]),
       excelRow(["", "", "", "", "", "", labelCell("Subtotal"), numberCell(totals.subtotal.toFixed(2), "Money"), ""]),
-      excelRow(["", "", "", "", "", "", labelCell("Shipping"), numberCell(number(data.shipping).toFixed(2), "Money"), ""]),
+      excelRow(["", "", "", "", "", "", labelCell("Shipping"), shippingCell, ""]),
       excelRow(["", "", "", "", "", "", labelCell("Discount"), numberCell(number(data.discount).toFixed(2), "Money"), ""]),
       excelRow(["", "", "", "", "", "", { value: "Total", style: "TotalLabel" }, numberCell(totals.total.toFixed(2), "TotalMoney"), ""]),
     );
@@ -772,7 +962,6 @@ function exportQuoteExcel() {
           ["Port of Discharge", data.destinationPort],
           ["Destination", data.tradeDestination],
           ["Packing", data.packing],
-          ["Declaration", data.declaration],
         ]
       : [
           ["Incoterm", data.incoterm],
@@ -784,6 +973,7 @@ function exportQuoteExcel() {
           ["Lead Time", data.leadTime],
           ["Packing", data.packing],
         ];
+    if (text(data.declaration, "")) terms.push(["Declaration", data.declaration]);
     const visibleTermRows = termRows(terms);
     rows.push(
       excelRow([""]),
@@ -794,7 +984,6 @@ function exportQuoteExcel() {
   }
   rows.push(
     excelRow([""]),
-    excelRow([{ value: [data.sellerWebsite, data.sellerEmail, data.sellerPhone].map((value) => text(value, "")).filter(Boolean).join(" | "), style: "Footer", mergeAcross: 8 }]),
     excelRow(["", "", "", "", "", "", labelCell("Signature"), valueCell(text(data.signatureText, `For ${text(data.sellerName, "Your Company Ltd.")}`)), ""]),
     excelRow(["", "", "", "", "", "", "", valueCell("Authorized Signature"), ""]),
   );
@@ -898,7 +1087,6 @@ function renderPreview(data) {
   const logoHtml = data.logoUrl
     ? `<img class="doc-logo" src="${escapeHtml(data.logoUrl)}" alt="${escapeHtml(text(data.sellerName, "Company logo"))}">`
     : "";
-  const footerContact = [data.sellerWebsite, data.sellerEmail, data.sellerPhone].map((value) => text(value, "")).filter(Boolean);
   const rows = data.items
     .filter((item) => item.desc || item.spec || item.material || item.hsCode || item.qty || item.price || item.rmbPrice)
     .map(
@@ -909,6 +1097,7 @@ function renderPreview(data) {
               ? `
                 <td>${escapeHtml(text(item.desc, "Product"))}</td>
                 <td>${escapeHtml(quantityWithUnit(item.qty, item.unit))}</td>
+                <td>${escapeHtml(text(item.packingDetails, ""))}</td>
                 <td>${escapeHtml(fixedUnit(item.packages, packageUnitLabel))}</td>
                 <td>${escapeHtml(fixedUnit(item.netWeight, "KGS", 3))}</td>
                 <td>${escapeHtml(fixedUnit(item.grossWeight, "KGS", 3))}</td>
@@ -963,17 +1152,23 @@ function renderPreview(data) {
       <div class="doc-block">
         <h3>Seller</h3>
         <p><strong>${escapeHtml(text(data.sellerName, "Your Company Ltd."))}</strong></p>
-        <p>${escapeHtml(text(data.sellerAddress))}</p>
-        <p>${escapeHtml(text(data.sellerContact))}</p>
-        <p>${escapeHtml(text(data.sellerEmail))}</p>
+        ${optionalParagraph(data.sellerAddress)}
+        ${contactChips([
+          ["Contact", data.sellerContact],
+          ["Email", validEmail(data.sellerEmail)],
+          ["Website", data.sellerWebsite],
+          ["Phone", data.sellerPhone],
+        ])}
       </div>
       <div class="doc-block">
         <h3>Buyer</h3>
         <p><strong>${escapeHtml(text(data.buyerName, "Customer Company"))}</strong></p>
-        <p>${escapeHtml(text(data.buyerAddress))}</p>
-        <p>${escapeHtml(text(data.buyerCountry))}</p>
-        <p>${escapeHtml(text(data.buyerContact))}</p>
-        <p>${escapeHtml(text(data.buyerEmail))}</p>
+        ${optionalParagraph(data.buyerAddress)}
+        ${contactChips([
+          ["Country", data.buyerCountry],
+          ["Contact", data.buyerContact],
+          ["Email", validEmail(data.buyerEmail)],
+        ])}
       </div>
     </section>
 
@@ -983,14 +1178,14 @@ function renderPreview(data) {
       <thead>
         <tr>
           ${isPackingList
-            ? "<th>Description</th><th>Qty</th><th>Packages</th><th>N.W.</th><th>G.W.</th>"
+            ? "<th>Description</th><th>Qty</th><th>Packing</th><th>Packages</th><th>N.W.</th><th>G.W.</th>"
             : isQuotation
               ? "<th>#</th><th>Image</th><th>Description</th><th>Qty</th><th>Unit Price</th><th>Amount</th>"
             : "<th>#</th><th>Image</th><th>Description</th><th>HS Code</th><th>Qty</th><th>Unit Price</th><th>Amount</th>"
           }
         </tr>
       </thead>
-      <tbody>${rows || `<tr><td colspan="${isPackingList ? 5 : isQuotation ? 6 : 7}">No items</td></tr>`}</tbody>
+      <tbody>${rows || `<tr><td colspan="${isPackingList ? 6 : isQuotation ? 6 : 7}">No items</td></tr>`}</tbody>
     </table>
 
     ${isPackingList ? `<section class="packing-summary">
@@ -1003,7 +1198,7 @@ function renderPreview(data) {
 
     ${isPackingList ? "" : `<section class="doc-summary">
       <div class="summary-row"><span>Subtotal</span><strong>${money(totals.subtotal, currency)}</strong></div>
-      <div class="summary-row"><span>Shipping</span><strong>${money(data.shipping, currency)}</strong></div>
+      <div class="summary-row"><span>Shipping</span><strong>${shippingDisplay(data, currency)}</strong></div>
       <div class="summary-row"><span>Discount</span><strong>${money(data.discount, currency)}</strong></div>
       <div class="summary-row total"><span>Total</span><strong>${money(totals.total, currency)}</strong></div>
     </section>`}
@@ -1032,12 +1227,11 @@ function renderPreview(data) {
       }
     </section>`}
 
-    ${isCommercialInvoice && data.declaration ? `<section class="doc-notes"><h3>Declaration</h3><p>${escapeHtml(data.declaration)}</p></section>` : ""}
+    ${!isPackingList && text(data.declaration, "") ? `<section class="doc-notes"><h3>Declaration</h3><p>${escapeHtml(data.declaration)}</p></section>` : ""}
     ${!isPackingList && !isCommercialInvoice && bankRows.length ? `<section class="doc-notes"><h3>Bank Information</h3>${bankRows.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("")}</section>` : ""}
     ${!isPackingList && data.notes ? `<section class="doc-notes"><h3>Remarks</h3><p>${escapeHtml(data.notes)}</p></section>` : ""}
 
     <footer class="doc-signature">
-      <span class="doc-footer-contact">${escapeHtml(footerContact.join(" | "))}</span>
       <span class="signature-line">
         <strong>${escapeHtml(text(data.signatureText, `For ${text(data.sellerName, "Your Company Ltd.")}`))}</strong>
         <i></i>
@@ -1064,6 +1258,7 @@ function saveDraft(data) {
 function update() {
   [...itemsBody.querySelectorAll(".item-row")].forEach(updateRow);
   const data = getData();
+  updateShippingControls(data);
   itemsBody.querySelectorAll(".item-package-wrap").forEach((wrap) => {
     wrap.dataset.unit = packageUnit(data);
   });
@@ -1077,6 +1272,8 @@ function loadDraft() {
     const saved = JSON.parse(localStorage.getItem(storageKey));
     setData({ ...(saved || defaults), docDate: pending?.id ? (saved?.docDate || todayString()) : todayString() });
     form.dataset.recordId = pending?.id || saved?.recordId || "";
+    form.dataset.folderId = saved?.folderId || "";
+    form.dataset.saveRemark = saved?.saveRemark || "";
     QuoteRecordsStore.clearPendingOpen?.();
   } catch {
     setData({ ...defaults, docDate: todayString() });
@@ -1091,14 +1288,15 @@ document.querySelector("#addItemBtn").addEventListener("click", () => {
 });
 
 document.querySelector("#exportExcelBtn").addEventListener("click", async () => {
-  await saveQuoteRecord();
+  const result = await saveQuoteRecord().catch(() => null);
+  if (!result || result.status !== "saved") return;
   exportQuoteExcel();
 });
 document.querySelector("#saveQuoteRecordBtn").addEventListener("click", () => {
-  saveQuoteRecord();
+  saveQuoteRecord().catch(() => {});
 });
 document.querySelector("#saveQuoteRecordAsBtn").addEventListener("click", () => {
-  saveQuoteRecord({ asNew: true });
+  saveQuoteRecord({ asNew: true }).catch(() => {});
 });
 
   document.querySelectorAll('input[name="docType"]').forEach((input) => {
@@ -1142,10 +1340,23 @@ document.querySelector("#clearPasteBtn").addEventListener("click", () => {
 });
 
 document.querySelector("#printBtn").addEventListener("click", async () => {
-  await saveQuoteRecord();
+  const result = await saveQuoteRecord().catch(() => null);
+  if (!result || result.status !== "saved") return;
   const originalTitle = document.title;
-  document.title = buildPdfFileName(getData()).replace(/\.pdf$/i, "");
-  window.print();
+  const pdfFileName = buildVersionedPdfFileName(getData());
+  document.title = pdfFileName.replace(/\.pdf$/i, "");
+  try {
+    if (window.desktopApp?.exportPdf) {
+      const exportResult = await window.desktopApp.exportPdf({ fileName: pdfFileName });
+      if (exportResult?.status === "saved") showRecordStatus(`PDF 已保存：${exportResult.filePath}`);
+      else showRecordStatus("已取消保存 PDF");
+    } else {
+      window.print();
+      showRecordStatus(`PDF 打印窗口已打开：建议保存为 ${pdfFileName}。如果要覆盖旧 PDF，请先关闭已打开的旧文件。`);
+    }
+  } catch (error) {
+    showRecordStatus(`PDF 保存失败：${error.message || error}`, true);
+  }
   setTimeout(() => {
     document.title = originalTitle;
   }, 1000);

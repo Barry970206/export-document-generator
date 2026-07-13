@@ -8,3 +8,24 @@ Thumbs.db
 # Temporary exports
 *.tmp
 *.bak
+
+# Node / Electron client build outputs
+node_modules/
+dist/
+out/
+release/
+*.asar
+
+# Local rendering and review output
+tmp/
+assets/
+*.pdf
+
+# Windows client-only source and documentation
+electron-main.js
+preload.js
+package.json
+package-lock.json
+scripts/package-portable.js
+docs/clientization-electron.md
+docs/外贸报价单发票生成器-*

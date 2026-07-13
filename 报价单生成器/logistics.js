@@ -1,23 +1,26 @@
 (function () {
   const storageKey = "logisticsProfiles";
-
-  const incoterms = ["EXW", "FOB", "CFR", "CIF", "DAP", "DDP"];
-  const transportModes = ["快递", "空运", "海运拼箱", "海运整柜", "铁路", "海派", "空派", "卡航", "专线"];
-  const billingMethods = ["按重量(KG)", "按体积(CBM)", "直接总价"];
-  const currencies = ["CNY", "USD", "EUR", "GBP", "HKD", "JPY"];
+  const utils = window.LogisticsUtils;
+  const { incoterms, transportModes, billingMethods, currencies, defaultCostItems } = utils;
 
   const defaultProfile = {
     name: "新物流方案",
     countryRegion: "",
+    originPort: "",
     destinationPort: "",
     supplier: "",
+    carrier: "",
+    sailingSchedule: "",
+    containerType: "20GP",
     incoterm: "FOB",
-    transportMode: "快递",
-    billingMethod: "按重量(KG)",
+    transportMode: "海运整柜",
+    billingMethod: "直接总价",
     currency: "CNY",
+    exchangeRate: utils.defaultExchangeRate,
     unitPrice: 0,
     minimumCharge: 0,
     totalCost: 0,
+    costItems: defaultCostItems.map((item, index) => ({ id: `default-${index + 1}`, amount: 0, quantity: 1, ...item })),
     remark: "",
   };
 
@@ -26,8 +29,7 @@
   }
 
   function number(value, fallback = 0) {
-    const parsed = Number(String(value ?? "").replace(/,/g, ""));
-    return Number.isFinite(parsed) ? parsed : fallback;
+    return utils.number(value, fallback);
   }
 
   function idFromName(name) {
@@ -40,31 +42,11 @@
   }
 
   function normalizeProfile(profile) {
-    const now = dateStamp();
-    const incoterm = incoterms.includes(profile.incoterm) ? profile.incoterm : defaultProfile.incoterm;
-    const transportMode = transportModes.includes(profile.transportMode) ? profile.transportMode : defaultProfile.transportMode;
-    const billingMethod = billingMethods.includes(profile.billingMethod) ? profile.billingMethod : defaultProfile.billingMethod;
-    const currency = currencies.includes(profile.currency) ? profile.currency : defaultProfile.currency;
-    const createdAt = profile.createdAt || now;
-    const updatedAt = profile.updatedAt || profile.updatedTime || createdAt || now;
-
-    return {
+    return utils.normalizeLogisticsProfile({
+      ...defaultProfile,
+      ...profile,
       id: profile.id || idFromName(profile.name),
-      name: String(profile.name || defaultProfile.name).trim() || defaultProfile.name,
-      countryRegion: String(profile.countryRegion || "").trim(),
-      destinationPort: String(profile.destinationPort || "").trim(),
-      supplier: String(profile.supplier || profile.logisticsSupplier || "").trim(),
-      incoterm,
-      transportMode,
-      billingMethod,
-      currency,
-      unitPrice: Math.max(number(profile.unitPrice), 0),
-      minimumCharge: Math.max(number(profile.minimumCharge), 0),
-      totalCost: Math.max(number(profile.totalCost), 0),
-      remark: String(profile.remark || "").trim(),
-      createdAt,
-      updatedAt,
-    };
+    });
   }
 
   function readProfiles() {
@@ -115,15 +97,22 @@
     const saveButton = document.querySelector("#saveLogisticsProfileBtn");
     const copyButton = document.querySelector("#copyLogisticsProfileBtn");
     const deleteButton = document.querySelector("#deleteLogisticsProfileBtn");
+    const addCostButton = document.querySelector("#addLogisticsCostBtn");
+    const costItemsNode = document.querySelector("#logisticsCostItems");
     const fields = {
       name: document.querySelector("#logisticsName"),
       countryRegion: document.querySelector("#logisticsCountry"),
+      originPort: document.querySelector("#logisticsOriginPort"),
       destinationPort: document.querySelector("#logisticsDestinationPort"),
       supplier: document.querySelector("#logisticsSupplier"),
+      carrier: document.querySelector("#logisticsCarrier"),
+      sailingSchedule: document.querySelector("#logisticsSailingSchedule"),
+      containerType: document.querySelector("#logisticsContainerType"),
       incoterm: document.querySelector("#logisticsIncoterm"),
       transportMode: document.querySelector("#logisticsTransportMode"),
       billingMethod: document.querySelector("#logisticsBillingMethod"),
       currency: document.querySelector("#logisticsCurrency"),
+      exchangeRate: document.querySelector("#logisticsExchangeRate"),
       unitPrice: document.querySelector("#logisticsUnitPrice"),
       minimumCharge: document.querySelector("#logisticsMinimumCharge"),
       totalCost: document.querySelector("#logisticsTotalCost"),
@@ -169,11 +158,12 @@
 
     function setEditorDisabled(disabled) {
       Object.values(fields).forEach((field) => {
-        field.disabled = disabled;
+        if (field) field.disabled = disabled;
       });
       saveButton.disabled = disabled;
       copyButton.disabled = disabled;
       deleteButton.disabled = disabled;
+      addCostButton.disabled = disabled;
     }
 
     function readEditor(markUpdated = false) {
@@ -183,15 +173,28 @@
         ...current,
         name: fields.name.value,
         countryRegion: fields.countryRegion.value,
+        originPort: fields.originPort.value,
         destinationPort: fields.destinationPort.value,
         supplier: fields.supplier.value,
+        carrier: fields.carrier.value,
+        sailingSchedule: fields.sailingSchedule.value,
+        containerType: fields.containerType.value,
         incoterm: fields.incoterm.value,
         transportMode: fields.transportMode.value,
         billingMethod: fields.billingMethod.value,
         currency: fields.currency.value,
+        exchangeRate: fields.exchangeRate.value,
         unitPrice: fields.unitPrice.value,
         minimumCharge: fields.minimumCharge.value,
-        totalCost: fields.totalCost.value,
+        costItems: [...costItemsNode.querySelectorAll(".logistics-cost-row")].map((row) => ({
+          id: row.dataset.id,
+          name: row.querySelector(".logistics-cost-name").value,
+          currency: row.querySelector(".logistics-cost-currency").value,
+          amount: row.querySelector(".logistics-cost-amount").value,
+          unit: row.querySelector(".logistics-cost-unit").value,
+          quantity: row.querySelector(".logistics-cost-quantity").value,
+          remark: row.querySelector(".logistics-cost-remark").value,
+        })),
         remark: fields.remark.value,
         updatedAt: markUpdated ? dateStamp() : current.updatedAt,
       });
@@ -207,17 +210,77 @@
       setEditorDisabled(false);
       fields.name.value = profile.name;
       fields.countryRegion.value = profile.countryRegion;
+      fields.originPort.value = profile.originPort || "";
       fields.destinationPort.value = profile.destinationPort;
       fields.supplier.value = profile.supplier;
+      fields.carrier.value = profile.carrier || "";
+      fields.sailingSchedule.value = profile.sailingSchedule || "";
+      fields.containerType.value = profile.containerType || "20GP";
       fields.incoterm.value = profile.incoterm;
       fields.transportMode.value = profile.transportMode;
       fields.billingMethod.value = profile.billingMethod;
       fields.currency.value = profile.currency;
+      fields.exchangeRate.value = formatNumber(profile.exchangeRate || utils.defaultExchangeRate);
       fields.unitPrice.value = formatNumber(profile.unitPrice);
       fields.minimumCharge.value = formatNumber(profile.minimumCharge);
       fields.totalCost.value = formatNumber(profile.totalCost);
+      renderCostItems(profile.costItems);
       fields.updatedAt.value = formatDateTime(profile.updatedAt);
       fields.remark.value = profile.remark;
+    }
+
+    function renderCurrencyOptions(selected) {
+      return currencies.map((currency) => `<option value="${currency}"${currency === selected ? " selected" : ""}>${currency}</option>`).join("");
+    }
+
+    function renderCostItems(items) {
+      clearNode(costItemsNode);
+      (items || []).forEach((rawItem) => {
+        const item = utils.normalizeCostItem(rawItem);
+        const row = document.createElement("div");
+        row.className = "logistics-cost-row";
+        row.dataset.id = item.id;
+        row.innerHTML = `
+          <input class="logistics-cost-name" type="text" aria-label="费用名称">
+          <select class="logistics-cost-currency" aria-label="币种">${renderCurrencyOptions(item.currency)}</select>
+          <input class="logistics-cost-amount" type="number" min="0" step="0.01" aria-label="单价">
+          <input class="logistics-cost-unit" type="text" aria-label="计费单位" placeholder="/20GP 或 /票">
+          <input class="logistics-cost-quantity" type="number" min="0" step="0.01" aria-label="数量">
+          <output class="logistics-cost-rmb" aria-label="折算人民币">0</output>
+          <input class="logistics-cost-remark" type="text" aria-label="备注" placeholder="备注">
+          <button class="icon-button logistics-cost-remove" type="button" aria-label="删除费用">×</button>
+        `;
+        row.querySelector(".logistics-cost-name").value = item.name;
+        row.querySelector(".logistics-cost-amount").value = formatNumber(item.amount);
+        row.querySelector(".logistics-cost-unit").value = item.unit;
+        row.querySelector(".logistics-cost-quantity").value = formatNumber(item.quantity);
+        row.querySelector(".logistics-cost-remark").value = item.remark || "";
+        costItemsNode.append(row);
+      });
+      refreshCostTotal();
+    }
+
+    function readCostRowsForSummary() {
+      return [...costItemsNode.querySelectorAll(".logistics-cost-row")].map((row) => ({
+        id: row.dataset.id,
+        name: row.querySelector(".logistics-cost-name").value,
+        currency: row.querySelector(".logistics-cost-currency").value,
+        amount: row.querySelector(".logistics-cost-amount").value,
+        unit: row.querySelector(".logistics-cost-unit").value,
+        quantity: row.querySelector(".logistics-cost-quantity").value,
+        remark: row.querySelector(".logistics-cost-remark").value,
+      }));
+    }
+
+    function refreshCostTotal() {
+      const summary = utils.calculateLogisticsCostSummary(
+        { costItems: readCostRowsForSummary(), exchangeRate: fields.exchangeRate.value },
+        { exchangeRate: fields.exchangeRate.value },
+      );
+      [...costItemsNode.querySelectorAll(".logistics-cost-row")].forEach((row, index) => {
+        row.querySelector(".logistics-cost-rmb").textContent = formatNumber(summary.rows[index]?.totalRmb || 0);
+      });
+      fields.totalCost.value = formatNumber(summary.totalRmb);
     }
 
     function saveCurrent(markUpdated = false, renderAfterSave = false) {
@@ -234,8 +297,27 @@
 
     function queueSave() {
       clearTimeout(saveTimer);
+      refreshCostTotal();
       saveTimer = setTimeout(() => saveCurrent(true), 140);
     }
+
+    addCostButton.addEventListener("click", () => {
+      const profile = selectedProfile();
+      if (!profile) return;
+      const next = [...readCostRowsForSummary(), { id: `cost-${Date.now()}`, name: "其他费用", currency: "CNY", amount: 0, unit: "", quantity: 1 }];
+      renderCostItems(next);
+      queueSave();
+    });
+
+    costItemsNode.addEventListener("click", (event) => {
+      if (!event.target.closest(".logistics-cost-remove")) return;
+      event.target.closest(".logistics-cost-row").remove();
+      refreshCostTotal();
+      saveCurrent(true, true);
+    });
+
+    costItemsNode.addEventListener("input", queueSave);
+    costItemsNode.addEventListener("change", queueSave);
 
     function matchesSearch(profile) {
       const keyword = searchInput.value.trim().toLowerCase();
@@ -243,12 +325,17 @@
       return [
         profile.name,
         profile.countryRegion,
+        profile.originPort,
         profile.destinationPort,
         profile.supplier,
+        profile.carrier,
+        profile.sailingSchedule,
+        profile.containerType,
         profile.incoterm,
         profile.transportMode,
         profile.billingMethod,
         profile.currency,
+        ...(profile.costItems || []).map((item) => `${item.name} ${item.currency} ${item.unit}`),
         profile.remark,
         formatDateTime(profile.updatedAt),
       ]
@@ -259,7 +346,7 @@
 
     function updateStatus() {
       const visibleCount = filteredProfiles().length;
-      status.textContent = `已保存 ${profiles.length} 个物流方案，当前显示 ${visibleCount} 个。数据键名：${storageKey}`;
+      status.textContent = `已保存 ${profiles.length} 个物流方案，当前显示 ${visibleCount} 个。多币种费用会在核算页按报价汇率折算为 RMB。`;
     }
 
     function renderList() {
@@ -283,7 +370,7 @@
 
         const meta = document.createElement("div");
         meta.className = "logistics-list-meta";
-        [profile.countryRegion || "未填国家", profile.incoterm, profile.transportMode].forEach((value) => {
+        [profile.countryRegion || "未填国家", profile.destinationPort || "未填目的港", `${profile.containerType || ""} ${formatNumber(profile.totalCost)} RMB`].forEach((value) => {
           const item = document.createElement("span");
           item.textContent = value;
           item.title = value;

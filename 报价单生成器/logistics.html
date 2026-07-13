@@ -161,7 +161,7 @@
           </div>
           <label class="logistics-search">
             <span>搜索</span>
-            <input id="logisticsSearch" type="search" placeholder="搜索方案、国家、目的港、供应商、币种、备注" />
+            <input id="logisticsSearch" type="search" placeholder="搜索方案、国家、起运港、目的港、供应商、船公司、币种、备注" />
           </label>
           <div id="logisticsProfilesList" class="logistics-list" aria-label="物流方案列表"></div>
         </section>
@@ -187,8 +187,24 @@
                 <input id="logisticsCountry" name="countryRegion" type="text" />
               </label>
               <label>
+                <span>柜型</span>
+                <input id="logisticsContainerType" name="containerType" type="text" placeholder="20GP / 40GP / 40HQ" />
+              </label>
+              <label>
+                <span>起运港</span>
+                <input id="logisticsOriginPort" name="originPort" type="text" />
+              </label>
+              <label>
                 <span>目的港</span>
                 <input id="logisticsDestinationPort" name="destinationPort" type="text" />
+              </label>
+              <label>
+                <span>船公司</span>
+                <input id="logisticsCarrier" name="carrier" type="text" />
+              </label>
+              <label>
+                <span>船期</span>
+                <input id="logisticsSailingSchedule" name="sailingSchedule" type="text" />
               </label>
               <label>
                 <span>贸易条款</span>
@@ -203,8 +219,12 @@
                 <input id="logisticsSupplier" name="supplier" type="text" />
               </label>
               <label>
-                <span>币种</span>
+                <span>默认币种</span>
                 <select id="logisticsCurrency" name="currency"></select>
+              </label>
+              <label>
+                <span>参考汇率 USD→RMB</span>
+                <input id="logisticsExchangeRate" name="exchangeRate" type="number" min="0" step="0.0001" />
               </label>
               <label>
                 <span>计费方式</span>
@@ -219,9 +239,26 @@
                 <input id="logisticsMinimumCharge" name="minimumCharge" type="number" min="0" step="0.0001" />
               </label>
               <label>
-                <span>物流总成本</span>
-                <input id="logisticsTotalCost" name="totalCost" type="number" min="0" step="0.0001" />
+                <span>折算物流总成本 RMB</span>
+                <input id="logisticsTotalCost" name="totalCost" type="number" min="0" step="0.0001" readonly />
               </label>
+              <div class="wide-field logistics-cost-editor">
+                <div class="section-heading">
+                  <span>费用明细</span>
+                  <button class="ghost-button compact" id="addLogisticsCostBtn" type="button">新增其他费用</button>
+                </div>
+                <div class="logistics-cost-header" aria-hidden="true">
+                  <span>费用项</span>
+                  <span>币种</span>
+                  <span>单价</span>
+                  <span>单位</span>
+                  <span>数量</span>
+                  <span>折算 RMB</span>
+                  <span>备注</span>
+                  <span></span>
+                </div>
+                <div id="logisticsCostItems" class="logistics-cost-items"></div>
+              </div>
               <label>
                 <span>更新时间</span>
                 <input class="logistics-updated-at" id="logisticsUpdatedAt" name="updatedAt" type="text" readonly tabindex="-1" />
@@ -237,6 +274,8 @@
       </section>
     </main>
 
+    <script src="navigation.js"></script>
+    <script src="logistics-utils.js"></script>
     <script src="logistics.js"></script>
   </body>
 </html>

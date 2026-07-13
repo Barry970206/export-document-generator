@@ -3,6 +3,7 @@
   const quoteDraftKey = "export-document-generator-v3";
   const calculatorDraftKey = "quotation-profit-calculator-v1";
   const pendingRecordKey = "quote-records-pending-open";
+  const foldersKey = "quoteRecordFolders";
   let migrationPromise = null;
 
   function readJson(key, fallback) {
@@ -20,6 +21,38 @@
 
   function id() {
     return `qr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  function folders() {
+    return readJson(foldersKey, [])
+      .filter((folder) => folder && folder.id && String(folder.name || "").trim())
+      .map((folder) => ({
+        id: String(folder.id),
+        name: String(folder.name || "").trim(),
+        createdAt: folder.createdAt || new Date().toISOString(),
+        updatedAt: folder.updatedAt || folder.createdAt || new Date().toISOString(),
+      }));
+  }
+
+  function createFolder(name) {
+    const clean = String(name || "").trim();
+    if (!clean) throw new Error("文件夹名称不能为空");
+    const now = new Date().toISOString();
+    const folder = { id: `folder-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: clean, createdAt: now, updatedAt: now };
+    writeJson(foldersKey, [...folders(), folder]);
+    return folder;
+  }
+
+  function renameFolder(folderId, name) {
+    const clean = String(name || "").trim();
+    if (!clean) throw new Error("文件夹名称不能为空");
+    writeJson(foldersKey, folders().map((folder) => folder.id === folderId ? { ...folder, name: clean, updatedAt: new Date().toISOString() } : folder));
+  }
+
+  async function removeFolder(folderId) {
+    const values = await records();
+    for (const record of values.filter((item) => item.folderId === folderId)) await upsert({ ...record, folderId: "" });
+    writeJson(foldersKey, folders().filter((folder) => folder.id !== folderId));
   }
 
   function documentType(value) {
@@ -124,6 +157,8 @@
       date: data.docDate || today(),
       totalAmount: Number(totals.total ?? 0),
       currency: data.currency || "USD",
+      folderId: options.folderId ?? data.folderId ?? "",
+      saveRemark: options.saveRemark ?? data.saveRemark ?? "",
       products: productSummaries(safeData.items),
       sellerInfo: {
         sellerName: data.sellerName || "",
@@ -152,6 +187,7 @@
         packing: data.packing || "",
         countryOfOrigin: data.countryOfOrigin || "",
         declaration: data.declaration || "",
+        shippingMode: data.shippingMode || (Number(data.shipping || 0) > 0 ? "custom" : "notIncluded"),
         shipping: data.shipping ?? 0,
         discount: data.discount ?? 0,
         notes: data.notes || "",
@@ -197,6 +233,8 @@
       buyerName: raw.buyerName || record.buyerInfo?.buyerName || record.customerName || "",
       items: raw.items || [],
       recordId: record.id || raw.recordId || "",
+      folderId: record.folderId || raw.folderId || "",
+      saveRemark: record.saveRemark || raw.saveRemark || "",
     };
   }
 
@@ -266,6 +304,10 @@
 
   window.QuoteRecordsStore = {
     records,
+    folders,
+    createFolder,
+    renameFolder,
+    removeFolder,
     upsert,
     remove,
     duplicate,

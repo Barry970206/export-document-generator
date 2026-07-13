@@ -25,7 +25,7 @@
     <main class="calculator-page">
       <header class="topbar calculator-topbar">
         <div>
-          <p class="eyebrow">Profit Calculator · v1.1.0</p>
+          <p class="eyebrow">报价核算 · 开源版 · v1.1.0</p>
           <h1>报价利润核算器</h1>
         </div>
         <div class="topbar-actions">
@@ -239,6 +239,14 @@
                 <textarea class="profit-product-name" rows="2" placeholder="Product / description" aria-label="产品描述"></textarea>
               </label>
               <label>
+                <span>型号 / 规格</span>
+                <input class="profit-spec" type="text" placeholder="Model / specification" aria-label="型号或规格" />
+              </label>
+              <label>
+                <span>材质 / 表面处理</span>
+                <input class="profit-material" type="text" placeholder="Material / surface" aria-label="材质或表面处理" />
+              </label>
+              <label>
                 <span>数量</span>
                 <input class="profit-qty" type="number" min="0" step="1" value="1" aria-label="数量" />
               </label>
@@ -324,8 +332,10 @@
     </main>
 
     <script src="packaging.js"></script>
+    <script src="logistics-utils.js"></script>
     <script src="db.js"></script>
     <script src="quote-records-store.js"></script>
+    <script src="navigation.js"></script>
     <script src="calculator.js"></script>
   </body>
 </html>

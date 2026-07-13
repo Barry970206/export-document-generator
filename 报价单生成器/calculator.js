@@ -97,22 +97,7 @@ function profileName(id) {
 }
 
 function normalizeLogisticsProfile(profile) {
-  const billingMethods = ["按重量(KG)", "按体积(CBM)", "直接总价"];
-  return {
-    id: profile.id || "",
-    name: String(profile.name || "物流方案").trim() || "物流方案",
-    countryRegion: String(profile.countryRegion || "").trim(),
-    destinationPort: String(profile.destinationPort || "").trim(),
-    supplier: String(profile.supplier || profile.logisticsSupplier || "").trim(),
-    incoterm: profile.incoterm || "FOB",
-    transportMode: profile.transportMode || "快递",
-    billingMethod: billingMethods.includes(profile.billingMethod) ? profile.billingMethod : "按重量(KG)",
-    currency: profile.currency || "CNY",
-    unitPrice: Math.max(number(profile.unitPrice), 0),
-    minimumCharge: Math.max(number(profile.minimumCharge), 0),
-    totalCost: Math.max(number(profile.totalCost), 0),
-    remark: String(profile.remark || "").trim(),
-  };
+  return window.LogisticsUtils.normalizeLogisticsProfile(profile || {});
 }
 
 function getLogisticsProfiles() {
@@ -155,6 +140,29 @@ function profileItemById(profile, keys) {
 
 function cbmFromPackagingItem(item) {
   return item ? packagingStore.cbmFromDimensions(item) : 0;
+}
+
+function palletizedCbm(carton, pallet, cartonQty, palletQty) {
+  const safeCartonQty = Math.max(number(cartonQty), 0);
+  const safePalletQty = Math.max(number(palletQty), 0);
+  if (safePalletQty <= 0) return safeCartonQty * cbmFromPackagingItem(carton);
+
+  const cartonLengthCm = number(carton?.lengthCm);
+  const cartonWidthCm = number(carton?.widthCm);
+  const cartonHeightCm = number(carton?.heightCm);
+  const palletLengthCm = number(pallet?.lengthCm);
+  const palletWidthCm = number(pallet?.widthCm);
+  const palletHeightCm = number(pallet?.heightCm);
+  const cartonsPerLayer =
+    cartonLengthCm > 0 && cartonWidthCm > 0 && palletLengthCm > 0 && palletWidthCm > 0
+      ? Math.floor(palletLengthCm / cartonLengthCm) * Math.floor(palletWidthCm / cartonWidthCm)
+      : 0;
+  const cartonsOnEachPallet = Math.ceil(safeCartonQty / safePalletQty);
+  const layers = cartonsPerLayer > 0 && cartonsOnEachPallet > 0 ? Math.ceil(cartonsOnEachPallet / cartonsPerLayer) : 0;
+  const loadedPalletHeightCm = palletHeightCm + layers * cartonHeightCm;
+  return palletLengthCm > 0 && palletWidthCm > 0 && loadedPalletHeightCm > 0
+    ? (safePalletQty * palletLengthCm * palletWidthCm * loadedPalletHeightCm) / 1000000
+    : safeCartonQty * cbmFromPackagingItem(carton) + safePalletQty * cbmFromPackagingItem(pallet);
 }
 
 function appendSelectOption(select, value, label, selectedValue) {
@@ -232,6 +240,8 @@ function outerPackagingSettings() {
 function readItem(row) {
   return {
     productName: row.querySelector(".profit-product-name").value.trim(),
+    spec: row.querySelector(".profit-spec").value.trim(),
+    material: row.querySelector(".profit-material").value.trim(),
     qty: Math.max(number(row.querySelector(".profit-qty").value), 0),
     unit: row.querySelector(".profit-unit").value.trim() || "PCS",
     unitWeightGram: Math.max(number(row.querySelector(".profit-unit-weight").value), 0),
@@ -343,29 +353,48 @@ function calculateBaseItem(item, outerSettings) {
 function calculateOrderOuterPackaging(baseResults, settings) {
   const orderTotalWeightKg = baseResults.reduce((sum, item) => sum + item.packaging.totalWeightKg, 0);
   const totalInnerPackQty = baseResults.reduce((sum, item) => sum + item.packaging.innerPackQty, 0);
+  const pallet = packagingItemById(settings.palletId);
+  const independentCartonQty = baseResults.reduce((sum, item) => sum + item.packaging.cartonQty, 0);
 
   if (settings.mode !== "combined") {
+    const independentPalletQty = !settings.usePallet
+      ? baseResults.reduce((sum, item) => sum + item.packaging.palletQty, 0)
+      : settings.manualPalletQty !== null
+        ? settings.manualPalletQty
+        : settings.cartonsPerPallet > 0
+          ? Math.ceil(independentCartonQty / settings.cartonsPerPallet)
+          : 0;
+    const itemCbm = baseResults.reduce((sum, item) => sum + item.packaging.totalCbm, 0);
+    const carton = packagingItemById(settings.cartonId);
+    const recalculatedPalletCbm = settings.usePallet && carton ? palletizedCbm(carton, pallet, independentCartonQty, independentPalletQty) : itemCbm;
+    const palletCost = settings.usePallet ? independentPalletQty * number(pallet?.unitCostRmb) : 0;
     return {
       mode: settings.mode,
       orderTotalWeightKg,
       totalInnerPackQty,
-      cartonQty: baseResults.reduce((sum, item) => sum + item.packaging.cartonQty, 0),
-      palletQty: baseResults.reduce((sum, item) => sum + item.packaging.palletQty, 0),
-      totalCbm: baseResults.reduce((sum, item) => sum + item.packaging.totalCbm, 0),
-      outerPackagingCost: 0,
+      cartonQty: independentCartonQty,
+      palletQty: independentPalletQty,
+      totalCbm: settings.usePallet ? recalculatedPalletCbm : itemCbm,
+      outerPackagingCost: palletCost,
     };
   }
 
   const carton = packagingItemById(settings.cartonId);
-  const pallet = packagingItemById(settings.palletId);
+  const cartonCapacityPcs = Math.max(number(carton?.capacityPcs), 0);
+  const cartonCapacityKg = Math.max(number(carton?.capacityKg), 0);
+  const activeQuantity = baseResults.reduce((sum, item) => sum + number(item.qty), 0);
   const cartonQty =
     settings.manualCartonQty !== null
       ? settings.manualCartonQty
       : settings.innerPacksPerCarton > 0
         ? Math.ceil(totalInnerPackQty / settings.innerPacksPerCarton)
-        : number(carton?.maxWeightKg) > 0
-          ? Math.ceil(orderTotalWeightKg / number(carton.maxWeightKg))
-          : 0;
+        : cartonCapacityPcs > 0
+          ? Math.ceil(activeQuantity / cartonCapacityPcs)
+          : cartonCapacityKg > 0
+            ? Math.ceil(orderTotalWeightKg / cartonCapacityKg)
+            : number(carton?.maxWeightKg) > 0
+              ? Math.ceil(orderTotalWeightKg / number(carton.maxWeightKg))
+              : 0;
   const palletQty = !settings.usePallet
     ? 0
     : settings.manualPalletQty !== null
@@ -375,7 +404,7 @@ function calculateOrderOuterPackaging(baseResults, settings) {
         : 0;
   const cartonCost = cartonQty * number(carton?.unitCostRmb);
   const palletCost = palletQty * number(pallet?.unitCostRmb);
-  const totalCbm = cartonQty * cbmFromPackagingItem(carton) + palletQty * cbmFromPackagingItem(pallet);
+  const totalCbm = settings.usePallet && palletQty > 0 ? palletizedCbm(carton, pallet, cartonQty, palletQty) : cartonQty * cbmFromPackagingItem(carton);
 
   return {
     mode: settings.mode,
@@ -423,14 +452,15 @@ function calculateOrderLogistics(baseResults, settings) {
   const currency = profile?.currency || "CNY";
   const unitPrice = profile?.unitPrice || 0;
   const minimumCharge = profile?.minimumCharge || 0;
-  const profileTotalCost = profile?.totalCost || 0;
+  const costSummary = profile ? window.LogisticsUtils.calculateLogisticsCostSummary(profile, { exchangeRate: settings.exchangeRate }) : null;
+  const profileTotalCost = costSummary?.totalRmb || 0;
   let rawCost = 0;
   let costSource = profile ? "未填写有效物流费用" : "未选择物流方案";
 
   if (profile) {
     if (profileTotalCost > 0) {
       rawCost = profileTotalCost;
-      costSource = "使用方案总价";
+      costSource = "使用费用明细折算总价";
     } else if (selected.billingMethod === "按重量(KG)") {
       rawCost = orderTotalWeightKg * unitPrice;
       if (minimumCharge > 0) rawCost = Math.max(rawCost, minimumCharge);
@@ -457,6 +487,7 @@ function calculateOrderLogistics(baseResults, settings) {
     unitPrice,
     minimumCharge,
     profileTotalCost,
+    costSummary,
     costSource,
   };
 }
@@ -663,6 +694,8 @@ function addItemRow(item = sampleItem) {
   const row = itemTemplate.content.firstElementChild.cloneNode(true);
   const selectedProfileId = item.packagingProfileId || "";
   row.querySelector(".profit-product-name").value = item.productName || "";
+  row.querySelector(".profit-spec").value = item.spec || "";
+  row.querySelector(".profit-material").value = item.material || "";
   row.querySelector(".profit-qty").value = number(item.qty, 1);
   row.querySelector(".profit-unit").value = item.unit || "PCS";
   row.querySelector(".profit-unit-weight").value = number(item.unitWeightGram);
@@ -673,7 +706,7 @@ function addItemRow(item = sampleItem) {
   row.querySelector(".profit-packing").value = number(item.packingCost);
   row.querySelector(".profit-freight").value = number(item.freightInsurance);
   row.querySelector(".profit-packaging-profile").addEventListener("change", calculate);
-  row.querySelectorAll("input").forEach((input) => input.addEventListener("input", calculate));
+  row.querySelectorAll("input, textarea").forEach((input) => input.addEventListener("input", calculate));
   row.querySelector(".remove-profit-item").addEventListener("click", () => {
     if (itemsBody.children.length === 1) addItemRow({ productName: "", qty: 1, unit: "PCS", unitWeightGram: 0, purchasePrice: 0, packingCost: 0, freightInsurance: 0 });
     row.remove();
@@ -775,8 +808,8 @@ async function generateQuote() {
     items: result.results.map((item, index) => ({
       image: "",
       desc: item.productName || "Product",
-      spec: "",
-      material: "",
+      spec: item.spec || "",
+      material: item.material || "",
       hsCode: "",
       qty: item.qty || 1,
       unit: item.unit,
@@ -855,8 +888,8 @@ async function saveCalculatorRecord() {
     items: result.results.map((item, index) => ({
       image: "",
       desc: item.productName || "Product",
-      spec: "",
-      material: "",
+      spec: item.spec || "",
+      material: item.material || "",
       hsCode: "",
       qty: item.qty || 1,
       unit: item.unit,
@@ -938,7 +971,9 @@ function hydrateFromDraft() {
 
   quoteItems.forEach((item) =>
     addItemRow({
-      productName: [item.desc, item.spec].filter(Boolean).join(" "),
+      productName: item.desc || "",
+      spec: item.spec || "",
+      material: item.material || "",
       qty: item.qty || 1,
       unit: item.unit || "PCS",
       unitWeightGram: item.unitWeightGram || 0,
